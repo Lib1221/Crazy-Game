@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "357008337257",
+    "project_id": "crazy-game-3c761",
+    "storage_bucket": "crazy-game-3c761.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:357008337257:android:31edb26b040be94e3975f8",
+        "android_client_info": {
+          "package_name": "com.example.crazygame"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQ-mgylQ9f5tiqKLzVdTh_hvMLEDNPFEI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

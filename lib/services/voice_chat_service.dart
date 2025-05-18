@@ -1,12 +1,17 @@
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'dart:convert';
 
 class VoiceChatService extends GetxService {
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
-  final _isMuted = false.obs;
+  final _localStream = webrtc.RTCVideoRenderer();
+  final _remoteStream = webrtc.RTCVideoRenderer();
+  WebSocketChannel? _channel;
+  webrtc.RTCPeerConnection? _peerConnection;
   final _isConnected = false.obs;
+  final _isMuted = false.obs;
+  final _isSpeakerOn = true.obs;
   final _error = Rx<String?>(null);
 
   bool get isMuted => _isMuted.value;
@@ -14,31 +19,57 @@ class VoiceChatService extends GetxService {
   String? get error => _error.value;
 
   Future<void> initialize() async {
-    try {
-      // Request microphone permission
-      final status = await Permission.microphone.request();
-      if (!status.isGranted) {
-        throw Exception('Microphone permission not granted');
-      }
+    await _localStream.initialize();
+    await _remoteStream.initialize();
+    await _requestPermissions();
+  }
 
-      // Initialize WebRTC
-      final configuration = {
+  Future<void> _requestPermissions() async {
+    await [
+      Permission.microphone,
+      Permission.camera,
+    ].request();
+  }
+
+  Future<void> connect(String roomId) async {
+    try {
+      final configuration = <String, dynamic>{
         'iceServers': [
           {'urls': 'stun:stun.l.google.com:19302'},
         ]
       };
 
-      _peerConnection = await createPeerConnection(configuration);
+      _peerConnection = await webrtc.createPeerConnection(configuration);
 
-      // Get local audio stream
-      _localStream = await navigator.mediaDevices.getUserMedia({
+      _peerConnection?.onIceCandidate = (candidate) {
+        _channel?.sink.add({
+          'type': 'candidate',
+          'candidate': candidate.toMap(),
+        });
+      };
+
+      _peerConnection?.onTrack = (event) {
+        if (event.track.kind == 'video') {
+          _remoteStream.srcObject = event.streams[0];
+        }
+      };
+
+      final stream = await webrtc.navigator.mediaDevices.getUserMedia({
         'audio': true,
         'video': false,
       });
 
-      // Add local stream to peer connection
-      _localStream!.getTracks().forEach((track) {
-        _peerConnection!.addTrack(track, _localStream!);
+      _localStream.srcObject = stream;
+      stream.getTracks().forEach((track) {
+        _peerConnection?.addTrack(track, stream);
+      });
+
+      _channel = WebSocketChannel.connect(
+        Uri.parse('wss://your-signaling-server.com/$roomId'),
+      );
+
+      _channel?.stream.listen((message) {
+        _handleSignalingMessage(message);
       });
 
       _isConnected.value = true;
@@ -49,65 +80,52 @@ class VoiceChatService extends GetxService {
     }
   }
 
-  void toggleMute() {
-    if (_localStream == null) return;
+  Future<void> connectToPeer(String peerId) async {
+    if (!_isConnected.value || _peerConnection == null) return;
 
+    try {
+      final offer = await _peerConnection!.createOffer();
+      await _peerConnection!.setLocalDescription(offer);
+
+      _channel?.sink.add(json.encode({
+        'type': 'offer',
+        'peerId': peerId,
+        'sdp': offer.sdp,
+      }));
+
+      _error.value = null;
+    } catch (e) {
+      _error.value = e.toString();
+    }
+  }
+
+  void _handleSignalingMessage(dynamic message) {
+    // Handle signaling messages
+  }
+
+  void toggleMute() {
     _isMuted.value = !_isMuted.value;
-    _localStream!.getAudioTracks().forEach((track) {
+    _localStream.srcObject?.getAudioTracks().forEach((track) {
       track.enabled = !_isMuted.value;
     });
   }
 
-  Future<void> connectToPeer(String peerId) async {
-    if (_peerConnection == null) return;
-
-    try {
-      // Create and send offer
-      final offer = await _peerConnection!.createOffer();
-      await _peerConnection!.setLocalDescription(offer);
-
-      // Send offer to signaling server
-      // Implementation depends on your signaling server
-    } catch (e) {
-      _error.value = e.toString();
-    }
+  void toggleSpeaker() {
+    _isSpeakerOn.value = !_isSpeakerOn.value;
+    // Implement speaker toggle logic
   }
 
-  Future<void> handleAnswer(Map<String, dynamic> answer) async {
-    if (_peerConnection == null) return;
-
-    try {
-      await _peerConnection!.setRemoteDescription(
-        RTCSessionDescription(
-          answer['sdp'],
-          answer['type'],
-        ),
-      );
-    } catch (e) {
-      _error.value = e.toString();
-    }
-  }
-
-  Future<void> handleIceCandidate(Map<String, dynamic> candidate) async {
-    if (_peerConnection == null) return;
-
-    try {
-      await _peerConnection!.addCandidate(
-        RTCIceCandidate(
-          candidate['candidate'],
-          candidate['sdpMid'],
-          candidate['sdpMLineIndex'],
-        ),
-      );
-    } catch (e) {
-      _error.value = e.toString();
-    }
+  Future<void> disconnect() async {
+    await _localStream.dispose();
+    await _remoteStream.dispose();
+    await _peerConnection?.close();
+    _channel?.sink.close();
+    _isConnected.value = false;
   }
 
   @override
   void onClose() {
-    _localStream?.dispose();
-    _peerConnection?.close();
+    disconnect();
     super.onClose();
   }
 }

@@ -7,4 +7,5 @@ abstract class Routes {
   static const HOME = '/home';
   static const GAME_LOBBY = '/game-lobby';
   static const GAME_ROOM = '/game-room';
-} 
+  static const SETTINGS = '/settings';
+}

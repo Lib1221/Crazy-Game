@@ -18,7 +18,7 @@ class WebSocketService extends GetxService {
     try {
       final wsUrl = Uri.parse('wss://your-backend-url.com/game/$roomId');
       _channel = WebSocketChannel.connect(wsUrl);
-      
+
       _channel!.stream.listen(
         (message) {
           final data = json.decode(message);
@@ -49,16 +49,24 @@ class WebSocketService extends GetxService {
 
   void playCard(Card card) {
     if (!_isConnected.value || _channel == null) return;
-    
+
     _channel!.sink.add(json.encode({
       'type': 'play_card',
       'card': card.toJson(),
     }));
   }
 
+  void undoPlayCard() {
+    if (!_isConnected.value || _channel == null) return;
+
+    _channel!.sink.add(json.encode({
+      'type': 'undo_play_card',
+    }));
+  }
+
   void drawCard() {
     if (!_isConnected.value || _channel == null) return;
-    
+
     _channel!.sink.add(json.encode({
       'type': 'draw_card',
     }));
@@ -66,7 +74,7 @@ class WebSocketService extends GetxService {
 
   void sendChatMessage(String message) {
     if (!_isConnected.value || _channel == null) return;
-    
+
     _channel!.sink.add(json.encode({
       'type': 'chat_message',
       'message': message,
@@ -75,7 +83,7 @@ class WebSocketService extends GetxService {
 
   void toggleVoiceChat(bool isEnabled) {
     if (!_isConnected.value || _channel == null) return;
-    
+
     _channel!.sink.add(json.encode({
       'type': 'voice_chat',
       'enabled': isEnabled,
@@ -87,4 +95,4 @@ class WebSocketService extends GetxService {
     disconnect();
     super.onClose();
   }
-} 
+}

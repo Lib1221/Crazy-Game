@@ -45,6 +45,8 @@ class Player {
     this.score = 0,
   });
 
+  bool get isCurrentPlayer => isCurrentTurn;
+
   factory Player.fromJson(Map<String, dynamic> json) {
     return Player(
       id: json['id'],
@@ -92,9 +94,13 @@ class GameState {
   factory GameState.fromJson(Map<String, dynamic> json) {
     return GameState(
       roomId: json['roomId'],
-      players: (json['players'] as List).map((player) => Player.fromJson(player)).toList(),
+      players: (json['players'] as List)
+          .map((player) => Player.fromJson(player))
+          .toList(),
       deck: (json['deck'] as List).map((card) => Card.fromJson(card)).toList(),
-      discardPile: (json['discardPile'] as List).map((card) => Card.fromJson(card)).toList(),
+      discardPile: (json['discardPile'] as List)
+          .map((card) => Card.fromJson(card))
+          .toList(),
       currentPlayerId: json['currentPlayerId'],
       turnTimeRemaining: json['turnTimeRemaining'],
       gameStatus: json['gameStatus'],
@@ -114,4 +120,4 @@ class GameState {
       'winnerId': winnerId,
     };
   }
-} 
+}

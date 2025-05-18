@@ -6,7 +6,7 @@ import 'package:crazygame/services/voice_chat_service.dart';
 class GameController extends GetxController {
   final WebSocketService _wsService = Get.find<WebSocketService>();
   final VoiceChatService _voiceService = Get.find<VoiceChatService>();
-  
+
   final _isLoading = false.obs;
   final _error = Rx<String?>(null);
   final _chatMessages = <String>[].obs;
@@ -57,6 +57,15 @@ class GameController extends GetxController {
     }
   }
 
+  void undoPlayCard() {
+    try {
+      _wsService.undoPlayCard();
+      _error.value = null;
+    } catch (e) {
+      _error.value = e.toString();
+    }
+  }
+
   void drawCard() {
     try {
       _wsService.drawCard();
@@ -80,11 +89,11 @@ class GameController extends GetxController {
     try {
       _isVoiceChatEnabled.value = !_isVoiceChatEnabled.value;
       _wsService.toggleVoiceChat(_isVoiceChatEnabled.value);
-      
+
       if (_isVoiceChatEnabled.value) {
         _voiceService.connectToPeer(gameState?.currentPlayerId ?? '');
       }
-      
+
       _error.value = null;
     } catch (e) {
       _error.value = e.toString();
@@ -105,4 +114,4 @@ class GameController extends GetxController {
     _wsService.disconnect();
     super.onClose();
   }
-} 
+}

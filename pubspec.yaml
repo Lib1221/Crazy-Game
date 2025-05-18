@@ -1,5 +1,5 @@
 name: crazygame
-description: A multiplayer card game with voice chat capabilities
+description: A multiplayer card game with real-time communication and voice chat.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ">=2.19.0 <4.0.0"
+  sdk: '>=3.0.0 <4.0.0'
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -41,14 +41,16 @@ dependencies:
   web_socket_channel: ^2.4.0
   # Voice Chat
   flutter_webrtc: ^0.9.47
-  permission_handler: ^11.1.0
+  permission_handler: ^11.0.1
   # UI Components
-  cupertino_icons: ^1.0.6
-  flutter_card_swiper: ^6.0.0
+  cupertino_icons: ^1.0.2
+  flutter_card_swiper: ^5.0.0
   google_fonts: ^6.1.0
   # Utils
   uuid: ^4.2.2
   logger: ^2.0.2+1
+  package_info_plus: ^5.0.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -59,7 +61,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^3.0.1
+  flutter_lints: ^2.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -76,6 +78,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/sounds/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
