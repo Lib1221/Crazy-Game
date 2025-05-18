@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'
 import 'package:get/get.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:crazygame/models/game_state.dart' as game;
