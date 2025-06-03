@@ -134,4 +134,22 @@ class AuthController extends GetxController {
       errorMessage.value = e.toString();
     }
   }
+
+  // Check authentication status
+  Future<bool> checkAuth() async {
+    try {
+      isLoading.value = true;
+      errorMessage.value = '';
+      return _authService.currentUser != null;
+    } catch (e) {
+      errorMessage.value = e.toString();
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  void clearError() {
+    errorMessage.value = '';
+  }
 }

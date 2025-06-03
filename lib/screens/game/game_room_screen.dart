@@ -5,6 +5,8 @@ import 'package:crazygame/screens/game/components/player_list.dart';
 import 'package:crazygame/screens/game/components/discard_pile.dart';
 import 'package:crazygame/screens/game/components/player_hand.dart';
 import 'package:crazygame/screens/game/components/chat_area.dart';
+import 'package:crazygame/screens/game/components/game_history.dart';
+import 'package:crazygame/screens/game/components/game_settings.dart';
 import 'package:crazygame/widgets/connection_status.dart';
 import 'package:crazygame/widgets/game_notifications.dart';
 import 'package:crazygame/models/game_state.dart';
@@ -21,8 +23,12 @@ class GameRoomScreen extends StatelessWidget {
         title: const Text('Game Room'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => _showGameHistory(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Get.toNamed('/settings'),
+            onPressed: () => _showGameSettings(context),
           ),
         ],
       ),
@@ -113,129 +119,195 @@ class GameRoomScreen extends StatelessWidget {
           ),
         ),
 
-        // Players
+        // Main game area
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: gameState.players.length,
-            itemBuilder: (context, index) {
-              final player = gameState.players[index];
-              final isCurrentPlayer = player.id == gameState.currentPlayerId;
+          child: Row(
+            children: [
+              // Left side - Players and game area
+              Expanded(
+                flex: 2,
+                child: Column(
+                  children: [
+                    // Players
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: gameState.players.length,
+                        itemBuilder: (context, index) {
+                          final player = gameState.players[index];
+                          final isCurrentPlayer =
+                              player.id == gameState.currentPlayerId;
 
-              return Material(
-                elevation: 2,
-                borderRadius: BorderRadius.circular(8),
-                child: ListTile(
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(
-                        backgroundImage: NetworkImage(player.avatarUrl),
-                        radius: 24,
-                      ),
-                      if (isCurrentPlayer)
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 2,
+                          return Material(
+                            elevation: 2,
+                            borderRadius: BorderRadius.circular(8),
+                            child: ListTile(
+                              leading: Stack(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundImage:
+                                        NetworkImage(player.avatarUrl),
+                                    radius: 24,
+                                  ),
+                                  if (isCurrentPlayer)
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      player.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'Score: ${player.score}',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade700,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Text(
+                                'Cards: ${player.hand.length}',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                ),
                               ),
                             ),
-                            child: const Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
-                              size: 12,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          player.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                          );
+                        },
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                    ),
+
+                    // Game controls
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          'Score: ${player.score}',
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.w500,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, -2),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                  subtitle: Text(
-                    'Cards: ${player.hand.length}',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _GameButton(
+                            icon: Icons.add_circle_outline,
+                            label: 'Draw Card',
+                            onPressed: controller.drawCard,
+                            color: Colors.blue,
+                          ),
+                          _GameButton(
+                            icon: Icons.undo,
+                            label: 'Undo',
+                            onPressed: controller.undoPlayCard,
+                            color: Colors.orange,
+                          ),
+                          _GameButton(
+                            icon: controller.isVoiceChatEnabled
+                                ? Icons.mic
+                                : Icons.mic_off,
+                            label: controller.isVoiceChatEnabled
+                                ? 'Voice On'
+                                : 'Voice Off',
+                            onPressed: controller.toggleVoiceChat,
+                            color: controller.isVoiceChatEnabled
+                                ? Colors.green
+                                : Colors.grey,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Right side - Chat area
+              Container(
+                width: 300,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    left: BorderSide(
+                      color: Colors.grey.shade200,
+                      width: 1,
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-
-        // Game controls
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _GameButton(
-                icon: Icons.add_circle_outline,
-                label: 'Draw Card',
-                onPressed: controller.drawCard,
-                color: Colors.blue,
-              ),
-              _GameButton(
-                icon: Icons.undo,
-                label: 'Undo',
-                onPressed: controller.undoPlayCard,
-                color: Colors.orange,
-              ),
-              _GameButton(
-                icon: controller.isVoiceChatEnabled ? Icons.mic : Icons.mic_off,
-                label: controller.isVoiceChatEnabled ? 'Voice On' : 'Voice Off',
-                onPressed: controller.toggleVoiceChat,
-                color:
-                    controller.isVoiceChatEnabled ? Colors.green : Colors.grey,
+                child: const ChatArea(),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  void _showGameHistory(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: 400,
+          height: 600,
+          padding: const EdgeInsets.all(16),
+          child: const GameHistory(),
+        ),
+      ),
+    );
+  }
+
+  void _showGameSettings(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(16),
+          child: const GameSettings(),
+        ),
+      ),
     );
   }
 }

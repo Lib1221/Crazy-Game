@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:crazygame/models/game_state.dart';
 import 'package:crazygame/services/websocket_service.dart';
 import 'package:crazygame/services/voice_chat_service.dart';
+import 'package:crazygame/models/game_event.dart';
 
 class GameController extends GetxController {
   final WebSocketService _wsService = Get.find<WebSocketService>();
@@ -151,23 +152,23 @@ class GameController extends GetxController {
   }
 
   // Settings methods
-  void toggleSound() {
-    _isSoundEnabled.value = !_isSoundEnabled.value;
+  void toggleSound(bool value) {
+    _isSoundEnabled.value = value;
     _saveSettings();
   }
 
-  void toggleMusic() {
-    _isMusicEnabled.value = !_isMusicEnabled.value;
+  void toggleMusic(bool value) {
+    _isMusicEnabled.value = value;
     _saveSettings();
   }
 
-  void toggleVibration() {
-    _isVibrationEnabled.value = !_isVibrationEnabled.value;
+  void toggleVibration(bool value) {
+    _isVibrationEnabled.value = value;
     _saveSettings();
   }
 
-  void toggleAutoPlay() {
-    _isAutoPlayEnabled.value = !_isAutoPlayEnabled.value;
+  void toggleAutoPlay(bool value) {
+    _isAutoPlayEnabled.value = value;
     _saveSettings();
   }
 
