@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart' hide Card;
 import 'package:get/get.dart';
 import 'package:crazygame/controllers/game_controller.dart';
-import 'package:crazygame/screens/game/components/player_list.dart';
-import 'package:crazygame/screens/game/components/discard_pile.dart';
-import 'package:crazygame/screens/game/components/player_hand.dart';
 import 'package:crazygame/screens/game/components/chat_area.dart';
 import 'package:crazygame/screens/game/components/game_history.dart';
 import 'package:crazygame/screens/game/components/game_settings.dart';
@@ -292,7 +289,7 @@ class GameRoomScreen extends StatelessWidget {
           width: 400,
           height: 600,
           padding: const EdgeInsets.all(16),
-          child: const GameHistory(),
+          child: GameHistory(),
         ),
       ),
     );

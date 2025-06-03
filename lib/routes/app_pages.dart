@@ -35,7 +35,7 @@ class AppPages {
     ),
     GetPage(
       name: Routes.GAME_ROOM,
-      page: () => const GameRoomScreen(),
+      page: () =>  GameRoomScreen(),
     ),
     GetPage(
       name: Routes.SETTINGS,

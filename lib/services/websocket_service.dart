@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:crazygame/models/card.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:get/get.dart';
 import 'package:crazygame/models/game_state.dart';

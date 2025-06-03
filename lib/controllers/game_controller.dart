@@ -1,3 +1,4 @@
+import 'package:crazygame/models/card.dart';
 import 'package:get/get.dart';
 import 'package:crazygame/models/game_state.dart';
 import 'package:crazygame/services/websocket_service.dart';
@@ -204,14 +205,14 @@ class GameController extends GetxController {
   }
 
   // Game history
-  final RxList<GameEvent> _gameHistory = <GameEvent>[].obs;
-  List<GameEvent> get gameHistory => _gameHistory;
+  final gameHistory = <GameEvent>[].obs;
 
   void addGameEvent(GameEvent event) {
-    _gameHistory.insert(0, event);
-    if (_gameHistory.length > 100) {
-      _gameHistory.removeLast();
-    }
+    gameHistory.add(event);
+  }
+
+  void clearHistory() {
+    gameHistory.clear();
   }
 
   @override
