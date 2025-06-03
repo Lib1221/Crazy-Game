@@ -11,17 +11,52 @@ class GameController extends GetxController {
   final _error = Rx<String?>(null);
   final _chatMessages = <String>[].obs;
   final _isVoiceChatEnabled = false.obs;
+  final _isReconnecting = false.obs;
+
+  // Game settings
+  final RxBool _isSoundEnabled = true.obs;
+  final RxBool _isMusicEnabled = true.obs;
+  final RxBool _isVibrationEnabled = true.obs;
+  final RxBool _isAutoPlayEnabled = false.obs;
+  final RxInt _turnTimeLimit = 60.obs;
+  final RxDouble _gameSpeed = 1.0.obs;
 
   bool get isLoading => _isLoading.value;
   String? get error => _error.value;
   List<String> get chatMessages => _chatMessages;
   bool get isVoiceChatEnabled => _isVoiceChatEnabled.value;
+  bool get isReconnecting => _isReconnecting.value;
   GameState? get gameState => _wsService.gameState;
+  bool get isConnected => _wsService.isConnected;
+
+  // Getters for settings
+  bool get isSoundEnabled => _isSoundEnabled.value;
+  bool get isMusicEnabled => _isMusicEnabled.value;
+  bool get isVibrationEnabled => _isVibrationEnabled.value;
+  bool get isAutoPlayEnabled => _isAutoPlayEnabled.value;
+  int get turnTimeLimit => _turnTimeLimit.value;
+  double get gameSpeed => _gameSpeed.value;
 
   @override
   void onInit() {
     super.onInit();
     _initializeServices();
+    ever(_wsService.error, _handleWebSocketError);
+  }
+
+  void _handleWebSocketError(String? error) {
+    if (error != null) {
+      _error.value = error;
+      if (error.contains('Failed to connect after')) {
+        _isReconnecting.value = false;
+      } else if (error.contains('Connection closed')) {
+        _isReconnecting.value = true;
+      }
+    }
+  }
+
+  void clearError() {
+    _error.value = null;
   }
 
   Future<void> _initializeServices() async {
@@ -39,8 +74,8 @@ class GameController extends GetxController {
   Future<void> joinGame(String roomId) async {
     try {
       _isLoading.value = true;
-      await _wsService.connect(roomId);
       _error.value = null;
+      await _wsService.connect(roomId);
     } catch (e) {
       _error.value = e.toString();
     } finally {
@@ -106,6 +141,75 @@ class GameController extends GetxController {
       _error.value = null;
     } catch (e) {
       _error.value = e.toString();
+    }
+  }
+
+  void retryConnection() {
+    if (gameState != null) {
+      joinGame(gameState!.roomId);
+    }
+  }
+
+  // Settings methods
+  void toggleSound() {
+    _isSoundEnabled.value = !_isSoundEnabled.value;
+    _saveSettings();
+  }
+
+  void toggleMusic() {
+    _isMusicEnabled.value = !_isMusicEnabled.value;
+    _saveSettings();
+  }
+
+  void toggleVibration() {
+    _isVibrationEnabled.value = !_isVibrationEnabled.value;
+    _saveSettings();
+  }
+
+  void toggleAutoPlay() {
+    _isAutoPlayEnabled.value = !_isAutoPlayEnabled.value;
+    _saveSettings();
+  }
+
+  void setTurnTimeLimit(int? value) {
+    if (value != null) {
+      _turnTimeLimit.value = value;
+      _saveSettings();
+    }
+  }
+
+  void setGameSpeed(double value) {
+    _gameSpeed.value = value;
+    _saveSettings();
+  }
+
+  void resetSettings() {
+    _isSoundEnabled.value = true;
+    _isMusicEnabled.value = true;
+    _isVibrationEnabled.value = true;
+    _isAutoPlayEnabled.value = false;
+    _turnTimeLimit.value = 60;
+    _gameSpeed.value = 1.0;
+    _saveSettings();
+  }
+
+  void saveSettings() {
+    _saveSettings();
+  }
+
+  void _saveSettings() {
+    // TODO: Implement settings persistence
+    // This could be done using shared_preferences or a local database
+  }
+
+  // Game history
+  final RxList<GameEvent> _gameHistory = <GameEvent>[].obs;
+  List<GameEvent> get gameHistory => _gameHistory;
+
+  void addGameEvent(GameEvent event) {
+    _gameHistory.insert(0, event);
+    if (_gameHistory.length > 100) {
+      _gameHistory.removeLast();
     }
   }
 

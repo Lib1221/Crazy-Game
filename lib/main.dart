@@ -7,7 +7,9 @@ import 'package:crazygame/controllers/game_controller.dart';
 import 'package:crazygame/controllers/settings_controller.dart';
 import 'package:crazygame/services/websocket_service.dart';
 import 'package:crazygame/services/voice_chat_service.dart';
-import 'firebase_options.dart';
+import 'package:crazygame/firebase_options.dart';
+import 'package:crazygame/services/auth_service.dart';
+import 'package:crazygame/controllers/auth_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,10 +20,12 @@ void main() async {
   // Initialize services
   Get.put(WebSocketService());
   Get.put(VoiceChatService());
+  await Get.putAsync(() => AuthService().init());
 
   // Initialize controllers
   Get.put(SettingsController());
   Get.put(GameController());
+  Get.put(AuthController());
 
   runApp(const CrazyGameApp());
 }

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:crazygame/screens/splash/components/logo_animation.dart';
-import 'package:crazygame/screens/splash/components/loading_indicator.dart';
-import 'package:crazygame/screens/splash/components/version_info.dart';
-import 'package:crazygame/routes/app_pages.dart';
+import 'package:crazygame/controllers/game_controller.dart';
+import 'package:crazygame/controllers/auth_controller.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({Key? key}) : super(key: key);
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -14,101 +12,123 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _fadeController;
-  late Animation<double> _fadeAnimation;
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _rotateAnimation;
+  late Animation<double> _opacityAnimation;
 
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2),
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
       CurvedAnimation(
-        parent: _fadeController,
-        curve: Curves.easeIn,
+        parent: _controller,
+        curve: Curves.elasticOut,
       ),
     );
 
-    _fadeController.forward();
-    _initializeApp();
+    _rotateAnimation = Tween<double>(begin: 0, end: 2).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
+      ),
+    );
+
+    _controller.forward().then((_) {
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          _checkAuthAndNavigate();
+        }
+      });
+    });
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    final authController = Get.find<AuthController>();
+    final isAuthenticated = await authController.checkAuth();
+
+    if (mounted) {
+      Get.offAllNamed(isAuthenticated ? '/home' : '/login');
+    }
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
+    _controller.dispose();
     super.dispose();
-  }
-
-  Future<void> _initializeApp() async {
-    // Simulate initialization delay
-    await Future.delayed(const Duration(seconds: 3));
-
-    // Navigate to the appropriate screen based on authentication state
-    // For now, we'll just navigate to the login screen
-    Get.offAllNamed(Routes.LOGIN);
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isSmallScreen = size.height < 600;
-
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Theme.of(context).colorScheme.primary.withOpacity(0.2),
-              Theme.of(context).colorScheme.background,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              // Main content
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Logo with responsive sizing
-                      SizedBox(
-                        width:
-                            isSmallScreen ? size.width * 0.4 : size.width * 0.3,
-                        height:
-                            isSmallScreen ? size.width * 0.4 : size.width * 0.3,
-                        child: const LogoAnimation(),
+      backgroundColor: Theme.of(context).primaryColor,
+      body: Center(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Transform.scale(
+                  scale: _scaleAnimation.value,
+                  child: Transform.rotate(
+                    angle: _rotateAnimation.value * 3.14159,
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
                       ),
-                      SizedBox(height: isSmallScreen ? 24 : 48),
-                      // Loading indicator with responsive sizing
-                      SizedBox(
-                        width: isSmallScreen ? 32 : 48,
-                        height: isSmallScreen ? 32 : 48,
-                        child: const LoadingIndicator(),
+                      child: const Icon(
+                        Icons.sports_esports,
+                        size: 80,
+                        color: Colors.blue,
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              // Version info at bottom
-              const Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: 16),
-                  child: VersionInfo(),
+                const SizedBox(height: 40),
+                Opacity(
+                  opacity: _opacityAnimation.value,
+                  child: const Text(
+                    'Crazy Game',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(height: 20),
+                Opacity(
+                  opacity: _opacityAnimation.value,
+                  child: const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
