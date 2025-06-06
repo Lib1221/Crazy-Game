@@ -24,12 +24,8 @@ class RealtimeChatService {
       }
 
       // Set connection state logging
-      _database.ref('.info/connected').onValue.listen((event) {
-        print('Database connection state: ${event.snapshot.value}');
-      });
-    } catch (e) {
-      print('Error initializing database: $e');
-    }
+      _database.ref('.info/connected').onValue.listen((event) {});
+    } catch (e) {}
   }
 
   // Get current user ID
@@ -43,7 +39,6 @@ class RealtimeChatService {
     try {
       return path.isEmpty ? _database.ref() : _database.ref(path);
     } catch (e) {
-      print('Error getting database reference for path $path: $e');
       rethrow;
     }
   }
@@ -61,7 +56,6 @@ class RealtimeChatService {
         await updateUserStatus(true);
       }
     } catch (e) {
-      print('Error signing in: $e');
       rethrow;
     }
   }
@@ -87,7 +81,6 @@ class RealtimeChatService {
         await updateUserStatus(true);
       }
     } catch (e) {
-      print('Error signing up: $e');
       rethrow;
     }
   }
@@ -108,9 +101,7 @@ class RealtimeChatService {
       };
 
       await _getRef('users/$userId').set(userData);
-      print('User info stored successfully for: $email');
     } catch (e) {
-      print('Error storing user info: $e');
       rethrow;
     }
   }
@@ -137,7 +128,6 @@ class RealtimeChatService {
 
       return Map<String, dynamic>.from(rawData as Map);
     } catch (e) {
-      print('Error getting user info: $e');
       return null;
     }
   }
@@ -155,22 +145,20 @@ class RealtimeChatService {
         if (rawData == null) return [];
 
         if (rawData is! Map) {
-          print('Chat data is not a Map');
           return [];
         }
 
-        final data = Map<String, dynamic>.from(rawData as Map);
+        final data = Map<String, dynamic>.from(rawData);
         final participants = data['participants'];
         final messages = data['messages'];
 
         if (participants == null || participants is! Map) {
-          print('No participants found in chat');
           return [];
         }
 
         // Get participant names
         final Map<String, String> participantNames = {};
-        for (var entry in (participants as Map).entries) {
+        for (var entry in (participants).entries) {
           final userId = entry.key.toString();
           final userData = entry.value;
           if (userData is Map) {
@@ -182,13 +170,13 @@ class RealtimeChatService {
         // Process messages
         final List<Map<String, dynamic>> messageList = [];
         if (messages != null && messages is Map) {
-          for (var entry in (messages as Map).entries) {
+          for (var entry in (messages).entries) {
             try {
               final messageId = entry.key.toString();
               final messageData = entry.value;
               if (messageData == null || messageData is! Map) continue;
 
-              final data = Map<String, dynamic>.from(messageData as Map);
+              final data = Map<String, dynamic>.from(messageData);
               final senderId = data['senderId']?.toString();
               if (senderId == null) continue;
 
@@ -205,7 +193,6 @@ class RealtimeChatService {
                 'isCurrentUser': senderId == user.uid,
               });
             } catch (e) {
-              print('Error processing message: $e');
               continue;
             }
           }
@@ -216,7 +203,6 @@ class RealtimeChatService {
             (a, b) => (a['timestamp'] as int).compareTo(b['timestamp'] as int));
         return messageList;
       } catch (e) {
-        print('Error processing chat: $e');
         return [];
       }
     });
@@ -235,7 +221,7 @@ class RealtimeChatService {
         throw Exception('Invalid chat data');
       }
 
-      final participants = Map<String, dynamic>.from(rawData as Map);
+      final participants = Map<String, dynamic>.from(rawData);
       final currentUserId = _auth.currentUser?.uid;
       if (currentUserId == null) {
         throw Exception('User not authenticated');
@@ -263,7 +249,6 @@ class RealtimeChatService {
         'currentUserId': currentUserId,
       };
     } catch (e) {
-      print('Error getting chat participant info: $e');
       rethrow;
     }
   }
@@ -276,17 +261,15 @@ class RealtimeChatService {
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
-      print('Cannot send message: User not authenticated');
       return;
     }
 
     if (chatId.isEmpty) {
-      print('Cannot send message: Invalid chat ID');
       return;
     }
 
     try {
-      final timestamp = ServerValue.timestamp;
+      const timestamp = ServerValue.timestamp;
       final basePath = chatType == 'group' ? 'group_chats' : 'chats';
       final messageRef = _getRef('$basePath/$chatId/messages').push();
 
@@ -326,7 +309,6 @@ class RealtimeChatService {
         await _getRef('chats/$chatId').update(updates);
       }
     } catch (e) {
-      print('Error sending message: $e');
       rethrow;
     }
   }
@@ -336,12 +318,10 @@ class RealtimeChatService {
       {String? chatType}) {
     final user = _auth.currentUser;
     if (user == null) {
-      print('Cannot get messages: User not authenticated');
       return Stream.value([]);
     }
 
     if (chatId.isEmpty) {
-      print('Cannot get messages: Invalid chat ID');
       return Stream.value([]);
     }
 
@@ -355,11 +335,10 @@ class RealtimeChatService {
           if (rawData == null) return [];
 
           if (rawData is! Map) {
-            print('Chat data is not a Map for $chatId');
             return [];
           }
 
-          final data = Map<String, dynamic>.from(rawData as Map);
+          final data = Map<String, dynamic>.from(rawData);
           final messages = data['messages'];
 
           // Get participants based on chat type
@@ -369,27 +348,20 @@ class RealtimeChatService {
               ? data['participants']
               : data['metadata']?['participants'];
 
-          // Get metadata for group chats (for readBy)
-          final metadata = chatType == 'group'
-              ? data['metadata']
-              : data['metadata']?['participants']
-                  ?['_metadata']; // Adjust metadata path for direct if needed
-
           if (participants == null || participants is! Map) {
-            print('No participants found in chat $chatId');
             return [];
           }
 
           // Process messages
           final List<Map<String, dynamic>> messageList = [];
           if (messages != null && messages is Map) {
-            for (var entry in (messages as Map).entries) {
+            for (var entry in (messages).entries) {
               try {
                 final messageId = entry.key.toString();
                 final messageData = entry.value;
                 if (messageData == null || messageData is! Map) continue;
 
-                final data = Map<String, dynamic>.from(messageData as Map);
+                final data = Map<String, dynamic>.from(messageData);
                 final senderId = data['senderId']?.toString();
                 if (senderId == null) continue;
 
@@ -407,9 +379,7 @@ class RealtimeChatService {
                   'timestamp': timestampMillis,
                   'isCurrentUser': senderId == user.uid,
                 });
-              } catch (e) {
-                print('Error processing message in $chatId: $e');
-              }
+              } catch (e) {}
             }
           }
 
@@ -418,12 +388,10 @@ class RealtimeChatService {
               (a['timestamp'] as int).compareTo(b['timestamp'] as int));
           return messageList;
         } catch (e) {
-          print('Error processing chat data stream for $chatId: $e');
           return [];
         }
       });
     } catch (e) {
-      print('Error setting up messages stream for $chatId: $e');
       return Stream.value([]);
     }
   }
@@ -445,11 +413,10 @@ class RealtimeChatService {
           if (rawData == null) return [];
 
           if (rawData is! Map) {
-            print('User data is not a Map');
             return [];
           }
 
-          final data = Map<String, dynamic>.from(rawData as Map);
+          final data = Map<String, dynamic>.from(rawData);
           final chats = <Map<String, dynamic>>[];
 
           // First process group chats
@@ -496,7 +463,6 @@ class RealtimeChatService {
                 });
               }
             } catch (e) {
-              print('Error processing group chat: $e');
               continue;
             }
           }
@@ -511,8 +477,9 @@ class RealtimeChatService {
 
               final participants =
                   chatData['participants'] as Map<String, dynamic>?;
-              if (participants == null || !participants.containsKey(user.uid))
+              if (participants == null || !participants.containsKey(user.uid)) {
                 continue;
+              }
 
               // Get other participant's info
               final otherParticipant = participants.entries.firstWhere(
@@ -535,9 +502,7 @@ class RealtimeChatService {
                   otherUserData['email']?.toString().toLowerCase() ?? ''
                 ],
               });
-            } catch (e) {
-              print('Error processing direct chat: $e');
-            }
+            } catch (e) {}
           }
 
           // Sort chats by last message time (newest first)
@@ -549,12 +514,10 @@ class RealtimeChatService {
 
           return chats;
         } catch (e) {
-          print('Error processing chats: $e');
           return [];
         }
       });
     } catch (e) {
-      print('Error setting up chats stream: $e');
       return Stream.value([]);
     }
   }
@@ -601,7 +564,6 @@ class RealtimeChatService {
   // Search user by email
   Future<Map<String, dynamic>?> searchUserByEmail(String email) async {
     if (email.isEmpty) {
-      print('Email is empty');
       return null;
     }
 
@@ -610,24 +572,21 @@ class RealtimeChatService {
       final snapshot = await usersRef.get();
 
       if (!snapshot.exists) {
-        print('No users found in database');
         return null;
       }
 
       final rawData = snapshot.value;
       if (rawData == null) {
-        print('Users data is null');
         return null;
       }
 
       // Ensure we have a Map
       if (rawData is! Map) {
-        print('Users data is not a Map');
         return null;
       }
 
       // Search for user with matching email
-      for (var entry in (rawData as Map).entries) {
+      for (var entry in (rawData).entries) {
         try {
           final userId = entry.key?.toString();
           if (userId == null) continue;
@@ -638,16 +597,14 @@ class RealtimeChatService {
           // Ensure userData is a Map
           if (rawUserData is! Map) continue;
 
-          final userMap = Map<String, dynamic>.from(rawUserData as Map);
+          final userMap = Map<String, dynamic>.from(rawUserData);
           final userEmail = userMap['email']?.toString();
 
           if (userEmail == null) {
-            print('User $userId has no email field');
             continue;
           }
 
           if (userEmail.toLowerCase() == email.toLowerCase()) {
-            print('Found user: ${userMap['name']} ($userEmail)');
             return {
               'uid': userId,
               'email': userEmail,
@@ -657,15 +614,12 @@ class RealtimeChatService {
             };
           }
         } catch (e) {
-          print('Error processing user entry: $e');
           continue;
         }
       }
 
-      print('No user found with email: $email');
       return null;
     } catch (e) {
-      print('Error searching user: $e');
       return null;
     }
   }
@@ -722,9 +676,7 @@ class RealtimeChatService {
 
       // Sign out from Firebase Auth
       await _auth.signOut();
-      print('User logged out successfully');
     } catch (e) {
-      print('Error during logout: $e');
       rethrow;
     }
   }
@@ -822,7 +774,7 @@ class RealtimeChatService {
         throw Exception('Invalid group chat data');
       }
 
-      final data = Map<String, dynamic>.from(rawData as Map);
+      final data = Map<String, dynamic>.from(rawData);
       final metadata = data['metadata'] as Map<String, dynamic>?;
       final participants = data['participants'] as Map<String, dynamic>?;
 
@@ -847,7 +799,6 @@ class RealtimeChatService {
         'readBy': metadata['readBy']
       };
     } catch (e) {
-      print('Error getting group chat info: $e');
       rethrow;
     }
   }
@@ -865,11 +816,10 @@ class RealtimeChatService {
         if (rawData == null) return [];
 
         if (rawData is! Map) {
-          print('Chats data is not a Map');
           return [];
         }
 
-        final chatsMap = Map<String, dynamic>.from(rawData as Map);
+        final chatsMap = Map<String, dynamic>.from(rawData);
         final groupChats = <Map<String, dynamic>>[];
 
         for (var entry in chatsMap.entries) {
@@ -878,7 +828,7 @@ class RealtimeChatService {
             final chatData = entry.value;
             if (chatData == null || chatData is! Map) continue;
 
-            final data = Map<String, dynamic>.from(chatData as Map);
+            final data = Map<String, dynamic>.from(chatData);
             if (data['type'] != 'group') continue;
 
             groupChats.add({
@@ -889,7 +839,6 @@ class RealtimeChatService {
               'joinedAt': data['joinedAt'],
             });
           } catch (e) {
-            print('Error processing group chat: $e');
             continue;
           }
         }
@@ -903,7 +852,6 @@ class RealtimeChatService {
 
         return groupChats;
       } catch (e) {
-        print('Error processing group chats: $e');
         return [];
       }
     });
@@ -951,9 +899,8 @@ class RealtimeChatService {
             'Invalid group chat participants data for chat ID: $groupChatId');
       }
 
-      return Map<String, dynamic>.from(rawData as Map);
+      return Map<String, dynamic>.from(rawData);
     } catch (e) {
-      print('Error getting group chat participants for $groupChatId: $e');
       rethrow;
     }
   }
@@ -981,9 +928,8 @@ class RealtimeChatService {
         throw Exception('Invalid chat data');
       }
 
-      return Map<String, dynamic>.from(rawData as Map);
+      return Map<String, dynamic>.from(rawData);
     } catch (e) {
-      print('Error getting chat info: $e');
       rethrow;
     }
   }
@@ -1002,7 +948,7 @@ class RealtimeChatService {
           .child('users')
           .orderByChild('email')
           .startAt(searchEmail)
-          .endAt(searchEmail + '\uf8ff')
+          .endAt('$searchEmail\uf8ff')
           .limitToFirst(10)
           .get();
 
@@ -1011,7 +957,7 @@ class RealtimeChatService {
       }
 
       final List<Map<String, dynamic>> users = [];
-      querySnapshot.children.forEach((child) {
+      for (var child in querySnapshot.children) {
         try {
           final data = child.value as Map<dynamic, dynamic>;
           final userEmail = data['email']?.toString().toLowerCase() ?? '';
@@ -1026,20 +972,15 @@ class RealtimeChatService {
               'lastLogin': data['lastLogin'],
             });
           }
-        } catch (e) {
-          print('Error processing user data: $e');
-        }
-      });
+        } catch (e) {}
+      }
 
       return users;
     } catch (e) {
       if (e.toString().contains('index-not-defined')) {
-        print(
-            'Firebase index not defined. Please update your database rules to include .indexOn for email field.');
         // Fallback to in-memory filtering if index is not defined
         return _searchUsersInMemory(email);
       }
-      print('Error searching users: $e');
       rethrow;
     }
   }
@@ -1069,15 +1010,12 @@ class RealtimeChatService {
               'lastLogin': data['lastLogin'],
             });
           }
-        } catch (e) {
-          print('Error processing user data: $e');
-        }
+        } catch (e) {}
       });
 
       users.sort((a, b) => a['email'].compareTo(b['email']));
       return users.take(10).toList();
     } catch (e) {
-      print('Error in fallback search: $e');
       rethrow;
     }
   }
@@ -1099,11 +1037,10 @@ class RealtimeChatService {
           if (rawData == null) return [];
 
           if (rawData is! Map) {
-            print('Group chat data is not a Map');
             return [];
           }
 
-          final data = Map<String, dynamic>.from(rawData as Map);
+          final data = Map<String, dynamic>.from(rawData);
           final groupChats = <Map<String, dynamic>>[];
 
           // Process each group chat
@@ -1166,7 +1103,6 @@ class RealtimeChatService {
                 });
               }
             } catch (e) {
-              print('Error processing group chat: $e');
               continue;
             }
           }
@@ -1180,12 +1116,10 @@ class RealtimeChatService {
 
           return groupChats;
         } catch (e) {
-          print('Error processing group chats: $e');
           return [];
         }
       });
     } catch (e) {
-      print('Error setting up group chats stream: $e');
       return Stream.value([]);
     }
   }
@@ -1223,9 +1157,7 @@ class RealtimeChatService {
         'turnOrder': turnOrder,
         'lastUpdated': ServerValue.timestamp,
       });
-    } catch (e) {
-      print('Error updating group chat turn: $e');
-    }
+    } catch (e) {}
   }
 
   // Get real-time game state
@@ -1237,13 +1169,13 @@ class RealtimeChatService {
         .child('game')
         .onValue
         .map((event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>? ?? {};
-      return {
-        'selectedNumbers': data['selectedNumbers'] ?? [],
-        'numberSelectors': data['numberSelectors'] ?? {},
-        'lastUpdated':
-            data['lastUpdated'] ?? DateTime.now().millisecondsSinceEpoch,
-      };
+      if (event.snapshot.value == null) {
+        return {
+          'selectedNumbers': [],
+          'numberSelectors': {},
+        };
+      }
+      return Map<String, dynamic>.from(event.snapshot.value as Map);
     });
   }
 
@@ -1254,30 +1186,58 @@ class RealtimeChatService {
     required String userId,
   }) async {
     try {
-      final gameStateRef =
+      final gameRef =
           _database.ref().child('group_chats').child(chatId).child('game');
 
-      // Get current state
-      final snapshot = await gameStateRef.get();
-      final currentState = snapshot.value as Map<dynamic, dynamic>? ?? {};
+      // Get current game state
+      final snapshot = await gameRef.get();
+      Map<String, dynamic> currentState = {
+        'selectedNumbers': [],
+        'numberSelectors': {},
+      };
 
-      // Update state
-      final selectedNumbers =
-          List<int>.from(currentState['selectedNumbers'] ?? []);
-      final numberSelectors =
-          Map<String, String>.from(currentState['numberSelectors'] ?? {});
+      if (snapshot.value != null) {
+        currentState = Map<String, dynamic>.from(snapshot.value as Map);
+      }
 
-      selectedNumbers.add(number);
+      // Update selected numbers
+      List<dynamic> selectedNumbers =
+          List<dynamic>.from(currentState['selectedNumbers'] ?? []);
+      if (!selectedNumbers.contains(number)) {
+        selectedNumbers.add(number);
+      }
+
+      // Update number selectors
+      Map<dynamic, dynamic> numberSelectors =
+          Map<dynamic, dynamic>.from(currentState['numberSelectors'] ?? {});
       numberSelectors[number.toString()] = userId;
 
-      // Save updated state
-      await gameStateRef.update({
+      // Update the database
+      await gameRef.update({
         'selectedNumbers': selectedNumbers,
         'numberSelectors': numberSelectors,
         'lastUpdated': ServerValue.timestamp,
       });
     } catch (e) {
       print('Error updating game state: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> resetGameState(String chatId) async {
+    try {
+      await _database
+          .ref()
+          .child('group_chats')
+          .child(chatId)
+          .child('game')
+          .set({
+        'selectedNumbers': [],
+        'numberSelectors': {},
+        'lastUpdated': ServerValue.timestamp,
+      });
+    } catch (e) {
+      print('Error resetting game state: $e');
       rethrow;
     }
   }

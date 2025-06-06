@@ -83,7 +83,6 @@ class ChatService {
         'name': userData['name'] ?? email.split('@')[0],
       };
     } catch (e) {
-      print('Error searching user: $e');
       return null;
     }
   }

@@ -15,15 +15,6 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   final RealtimeChatService _chatService = RealtimeChatService();
 
-  String _getParticipantEmails(Map<String, dynamic> participants) {
-    final emails = <String>[];
-    for (var participant in participants.values) {
-      if (participant is Map && participant['email'] != null) {
-        emails.add(participant['email']);
-      }
-    }
-    return emails.join(', ');
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +63,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
             itemBuilder: (context, index) {
               final chat = chats[index];
               final participants = chat['participants'] as Map<String, dynamic>;
-              final metadata = chat['metadata'] as Map<String, dynamic>?;
 
               return ListTile(
                 leading: CircleAvatar(
@@ -112,20 +102,4 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  String _formatTimestamp(int timestamp) {
-    if (timestamp == 0) return '';
-    final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
-    }
-  }
 }

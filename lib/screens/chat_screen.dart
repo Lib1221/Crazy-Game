@@ -82,28 +82,26 @@ class _ChatScreenState extends State<ChatScreen> {
         }
 
         // Extract and validate participant emails
-        if (participants is Map<String, dynamic>) {
-          participants.forEach((userId, participantData) {
-            if (participantData is Map<String, dynamic>) {
-              final email = participantData['email'];
-              final name = participantData['name'];
-              final role = participantData['role'];
+        participants.forEach((userId, participantData) {
+          if (participantData is Map<String, dynamic>) {
+            final email = participantData['email'];
+            final name = participantData['name'];
+            final role = participantData['role'];
 
-              if (email != null && email is String && email.contains('@')) {
-                _participantEmails.add({
-                  'id': userId,
-                  'email': email.toLowerCase().trim(),
-                  'name': (name is String && name.trim().isNotEmpty)
-                      ? name.trim()
-                      : 'Unknown',
-                  'role': (role is String && role.trim().isNotEmpty)
-                      ? role.trim()
-                      : 'member',
-                });
-              }
+            if (email != null && email is String && email.contains('@')) {
+              _participantEmails.add({
+                'id': userId,
+                'email': email.toLowerCase().trim(),
+                'name': (name is String && name.trim().isNotEmpty)
+                    ? name.trim()
+                    : 'Unknown',
+                'role': (role is String && role.trim().isNotEmpty)
+                    ? role.trim()
+                    : 'member',
+              });
             }
-          });
-        }
+          }
+        });
       } else {
         // For direct chat, add both participants
         if (chatData['email'] != null &&
