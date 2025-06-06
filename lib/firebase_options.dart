@@ -46,6 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '357008337257',
     projectId: 'crazy-game-3c761',
     authDomain: 'crazy-game-3c761.firebaseapp.com',
+    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
     storageBucket: 'crazy-game-3c761.firebasestorage.app',
     measurementId: 'G-S33P7TDFGF',
   );
@@ -55,6 +56,7 @@ class DefaultFirebaseOptions {
     appId: '1:357008337257:android:31edb26b040be94e3975f8',
     messagingSenderId: '357008337257',
     projectId: 'crazy-game-3c761',
+    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
     storageBucket: 'crazy-game-3c761.firebasestorage.app',
   );
 
@@ -63,6 +65,7 @@ class DefaultFirebaseOptions {
     appId: '1:357008337257:ios:0e7512cb72eeb9de3975f8',
     messagingSenderId: '357008337257',
     projectId: 'crazy-game-3c761',
+    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
     storageBucket: 'crazy-game-3c761.firebasestorage.app',
     iosBundleId: 'com.example.crazygame',
   );
@@ -72,6 +75,7 @@ class DefaultFirebaseOptions {
     appId: '1:357008337257:ios:0e7512cb72eeb9de3975f8',
     messagingSenderId: '357008337257',
     projectId: 'crazy-game-3c761',
+    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
     storageBucket: 'crazy-game-3c761.firebasestorage.app',
     iosBundleId: 'com.example.crazygame',
   );
@@ -82,7 +86,9 @@ class DefaultFirebaseOptions {
     messagingSenderId: '357008337257',
     projectId: 'crazy-game-3c761',
     authDomain: 'crazy-game-3c761.firebaseapp.com',
+    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
     storageBucket: 'crazy-game-3c761.firebasestorage.app',
     measurementId: 'G-8PSCFECK5E',
   );
+
 }

@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$uid": {
+        ".read": true,
+        ".write": "$uid === auth.uid"
+      }
+    },
+    "chats": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$chatId": {
+        ".read": "auth != null && data.child('metadata/participants').hasChild(auth.uid)",
+        ".write": "auth != null && data.child('metadata/participants').hasChild(auth.uid)",
+        "messages": {
+          ".read": "auth != null && root.child('chats').child($chatId).child('metadata/participants').hasChild(auth.uid)",
+          ".write": "auth != null && root.child('chats').child($chatId).child('metadata/participants').hasChild(auth.uid)"
+        }
+      }
+    }
+  }
+} 

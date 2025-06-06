@@ -1,5 +1,5 @@
 name: crazygame
-description: A multiplayer card game with real-time communication and voice chat.
+description: A real-time chat application with Firebase integration.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -37,20 +37,9 @@ dependencies:
   firebase_auth: ^4.15.3
   cloud_firestore: ^4.13.6
   firebase_storage: ^11.5.6
-  # WebSocket
-  web_socket_channel: ^2.4.0
-  # Voice Chat
-  flutter_webrtc: ^0.9.47
-  permission_handler: ^11.0.1
-  # UI Components
+  firebase_database: ^10.3.8
+  provider: ^6.1.1
   cupertino_icons: ^1.0.2
-  flutter_card_swiper: ^5.0.0
-  google_fonts: ^6.1.0
-  # Utils
-  uuid: ^4.2.2
-  logger: ^2.0.2+1
-  package_info_plus: ^5.0.1
-  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -77,6 +66,8 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
+    - assets/icons/
+    - assets/sounds/
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

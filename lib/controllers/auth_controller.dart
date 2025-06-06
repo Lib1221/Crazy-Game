@@ -1,155 +1,244 @@
-import 'package:flutter/widgets.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-import 'package:crazygame/services/auth_service.dart';
-import 'package:crazygame/routes/app_pages.dart';
+import '../services/realtime_chat_service.dart';
 
 class AuthController extends GetxController {
-  final AuthService _authService = Get.find<AuthService>();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final RealtimeChatService _chatService = RealtimeChatService();
 
-  // Form controllers
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final confirmPasswordController = TextEditingController();
-
-  // Loading states
-  final isLoading = false.obs;
-  final isEmailChecking = false.obs;
-  final isEmailAvailable = true.obs;
-
-  // Error messages
-  final errorMessage = ''.obs;
+  final Rx<User?> currentUser = Rx<User?>(null);
+  final Rx<Map<String, dynamic>?> userData = Rx<Map<String, dynamic>?>(null);
+  final RxBool isLoading = false.obs;
+  final RxString errorMessage = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
-    // Listen to email changes for real-time validation
-    emailController.addListener(_checkEmailAvailability);
-
-    // Check initial auth state
-    if (_authService.currentUser != null) {
-      Get.offAllNamed(Routes.HOME);
-    }
+    currentUser.value = _auth.currentUser;
+    _auth.authStateChanges().listen((User? user) {
+      currentUser.value = user;
+      if (user != null) {
+        _loadUserData(user.uid);
+        Get.offAllNamed('/chats');
+      } else {
+        userData.value = null;
+        Get.offAllNamed('/auth');
+      }
+    });
   }
 
-  @override
-  void onClose() {
-    nameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    confirmPasswordController.dispose();
-    super.onClose();
-  }
-
-  // Check email availability in real-time
-  Future<void> _checkEmailAvailability() async {
-    final email = emailController.text.trim();
-    if (email.isEmpty || !GetUtils.isEmail(email)) {
-      isEmailAvailable.value = true;
-      return;
-    }
-
-    isEmailChecking.value = true;
+  Future<void> _loadUserData(String uid) async {
     try {
-      final exists = await _authService.isEmailExists(email);
-      isEmailAvailable.value = !exists;
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        userData.value = doc.data();
+      }
     } catch (e) {
-      isEmailAvailable.value = true;
-    } finally {
-      isEmailChecking.value = false;
+      Get.snackbar(
+        'Error',
+        'Failed to load user data',
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
-  // Register new user
-  Future<void> register() async {
-    if (isLoading.value) return;
-
+  Future<void> signInWithEmailAndPassword(String email, String password) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
 
-      final name = nameController.text.trim();
-      final email = emailController.text.trim();
-      final password = passwordController.text;
-      final confirmPassword = confirmPasswordController.text;
+      final UserCredential userCredential =
+          await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      // Validate inputs
-      if (name.isEmpty) throw 'Please enter your name';
-      if (email.isEmpty) throw 'Please enter your email';
-      if (!GetUtils.isEmail(email)) throw 'Please enter a valid email';
-      if (password.isEmpty) throw 'Please enter your password';
-      if (password.length < 6) throw 'Password must be at least 6 characters';
-      if (password != confirmPassword) throw 'Passwords do not match';
-      if (!isEmailAvailable.value) throw 'Email is already registered';
+      // Update last login time
+      await _firestore
+          .collection('users')
+          .doc(userCredential.user?.uid)
+          .update({
+        'lastLogin': FieldValue.serverTimestamp(),
+      });
 
-      // Register user
-      await _authService.registerWithEmailAndPassword(name, email, password);
-
-      // Clear form
-      nameController.clear();
-      emailController.clear();
-      passwordController.clear();
-      confirmPasswordController.clear();
+      // Update user's online status
+      await _chatService.updateUserStatus(true);
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Error: ${e.code} - ${e.message}');
+      switch (e.code) {
+        case 'user-not-found':
+          errorMessage.value = 'No user found for that email.';
+          break;
+        case 'wrong-password':
+          errorMessage.value = 'Wrong password provided.';
+          break;
+        case 'invalid-email':
+          errorMessage.value = 'The email address is not valid.';
+          break;
+        default:
+          errorMessage.value = 'An error occurred during sign in: ${e.message}';
+      }
+      rethrow;
     } catch (e) {
-      errorMessage.value = e.toString();
+      print('Sign In Error: $e');
+      errorMessage.value = 'An unexpected error occurred: $e';
+      rethrow;
     } finally {
       isLoading.value = false;
     }
   }
 
-  // Login user
-  Future<void> login() async {
-    if (isLoading.value) return;
-
+  Future<void> createUserWithEmailAndPassword(
+      String email, String password, String name) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
 
-      final email = emailController.text.trim();
-      final password = passwordController.text;
+      // Create user in Firebase Auth
+      final UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      // Validate inputs
-      if (email.isEmpty) throw 'Please enter your email';
-      if (!GetUtils.isEmail(email)) throw 'Please enter a valid email';
-      if (password.isEmpty) throw 'Please enter your password';
+      // Update user profile with name
+      await userCredential.user?.updateDisplayName(name);
 
-      // Login user
-      await _authService.loginWithEmailAndPassword(email, password);
+      // Store user data in Firestore
+      await _firestore.collection('users').doc(userCredential.user?.uid).set({
+        'name': name,
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+        'lastLogin': FieldValue.serverTimestamp(),
+      });
 
-      // Clear form
-      emailController.clear();
-      passwordController.clear();
+      // Store user data in Realtime Database
+      await _chatService.storeUserInfo(
+        userId: userCredential.user!.uid,
+        name: name,
+        email: email,
+      );
+
+      // Update user's online status
+      await _chatService.updateUserStatus(true);
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Error: ${e.code} - ${e.message}');
+      switch (e.code) {
+        case 'weak-password':
+          errorMessage.value = 'The password provided is too weak.';
+          break;
+        case 'email-already-in-use':
+          errorMessage.value = 'An account already exists for that email.';
+          break;
+        case 'invalid-email':
+          errorMessage.value = 'The email address is not valid.';
+          break;
+        default:
+          errorMessage.value =
+              'An error occurred during registration: ${e.message}';
+      }
+      rethrow;
     } catch (e) {
-      errorMessage.value = e.toString();
+      print('Registration Error: $e');
+      errorMessage.value = 'An unexpected error occurred: $e';
+      rethrow;
     } finally {
       isLoading.value = false;
     }
   }
 
-  // Sign out
   Future<void> signOut() async {
     try {
-      await _authService.signOut();
+      // Update user's online status before signing out
+      if (_auth.currentUser != null) {
+        await _chatService.updateUserStatus(false);
+      }
+      await _auth.signOut();
+      userData.value = null;
+      Get.offAllNamed('/auth');
     } catch (e) {
-      errorMessage.value = e.toString();
+      print('Sign Out Error: $e');
+      errorMessage.value = 'Error signing out: $e';
+      rethrow;
     }
   }
 
-  // Check authentication status
-  Future<bool> checkAuth() async {
+  Future<void> updateUserProfile({
+    String? name,
+    String? status,
+    String? photoUrl,
+    String? phoneNumber,
+    String? bio,
+  }) async {
     try {
-      isLoading.value = true;
-      errorMessage.value = '';
-      return _authService.currentUser != null;
+      if (currentUser.value != null) {
+        final updates = <String, dynamic>{
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        if (name != null) {
+          updates['name'] = name;
+          await currentUser.value!.updateDisplayName(name);
+        }
+        if (status != null) updates['status'] = status;
+        if (photoUrl != null) updates['photoUrl'] = photoUrl;
+        if (phoneNumber != null) updates['phoneNumber'] = phoneNumber;
+        if (bio != null) updates['bio'] = bio;
+
+        await _firestore
+            .collection('users')
+            .doc(currentUser.value!.uid)
+            .update(updates);
+        await _loadUserData(currentUser.value!.uid);
+      }
     } catch (e) {
-      errorMessage.value = e.toString();
-      return false;
-    } finally {
-      isLoading.value = false;
+      Get.snackbar(
+        'Error',
+        e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      rethrow;
     }
   }
 
-  void clearError() {
-    errorMessage.value = '';
+  Future<void> updateUserSettings({
+    bool? notifications,
+    bool? darkMode,
+    String? language,
+  }) async {
+    try {
+      if (currentUser.value != null) {
+        final updates = <String, dynamic>{
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        if (notifications != null) {
+          updates['settings.notifications'] = notifications;
+        }
+        if (darkMode != null) {
+          updates['settings.darkMode'] = darkMode;
+        }
+        if (language != null) {
+          updates['settings.language'] = language;
+        }
+
+        await _firestore
+            .collection('users')
+            .doc(currentUser.value!.uid)
+            .update(updates);
+        await _loadUserData(currentUser.value!.uid);
+      }
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      rethrow;
+    }
   }
+
+  bool get isAuthenticated => currentUser.value != null;
 }
