@@ -19,11 +19,15 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final RealtimeChatService _chatService = RealtimeChatService();
-  final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Map<String, dynamic>? _participantInfo;
   Map<String, dynamic>? _groupInfo;
   bool _isGroupChat = false;
+  Set<int> _selectedNumbers = {};
+  Map<int, String> _numberSelectors = {};
+  String? _currentTurnUserId;
+  List<String> _turnOrder = [];
+  int _currentTurnIndex = 0;
 
   @override
   void initState() {
@@ -127,17 +131,59 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _sendMessage() {
-    final message = _messageController.text.trim();
-    if (message.isEmpty) return;
+  void _initializeTurnOrder() {
+    if (_isGroupChat && _groupInfo != null) {
+      final participants = _groupInfo!['participants'] as Map<String, dynamic>;
+      _turnOrder = participants.keys.toList();
+      // Sort turn order by joined time if available
+      _turnOrder.sort((a, b) {
+        final timeA = participants[a]['joinedAt'] ?? 0;
+        final timeB = participants[b]['joinedAt'] ?? 0;
+        return timeA.compareTo(timeB);
+      });
+      _currentTurnIndex = 0;
+      _currentTurnUserId = _turnOrder.isNotEmpty ? _turnOrder[0] : null;
+    } else if (_participantInfo != null) {
+      _turnOrder = [_chatService.currentUserId!, _participantInfo!['id']];
+      _currentTurnIndex = 0;
+      _currentTurnUserId = _turnOrder[0];
+    }
+  }
+
+  void _nextTurn() {
+    if (_turnOrder.isEmpty) return;
+    _currentTurnIndex = (_currentTurnIndex + 1) % _turnOrder.length;
+    _currentTurnUserId = _turnOrder[_currentTurnIndex];
+  }
+
+  bool get _isMyTurn => _currentTurnUserId == _chatService.currentUserId;
+
+  void _sendNumber(int number) {
+    if (!_isMyTurn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait for your turn')),
+      );
+      return;
+    }
+
+    if (_selectedNumbers.contains(number)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This number has already been selected')),
+      );
+      return;
+    }
 
     _chatService.sendMessage(
       chatId: widget.chatId,
-      content: message,
+      content: number.toString(),
       chatType: _isGroupChat ? 'group' : null,
     );
 
-    _messageController.clear();
+    setState(() {
+      _selectedNumbers.add(number);
+      _numberSelectors[number] = _chatService.currentUserId ?? 'Unknown';
+      _nextTurn();
+    });
     _scrollToBottom();
   }
 
@@ -297,6 +343,20 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (_currentTurnUserId != null)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              color: _isMyTurn ? Colors.green[100] : Colors.grey[200],
+              child: Center(
+                child: Text(
+                  _isMyTurn ? 'Your turn!' : 'Waiting for other player...',
+                  style: TextStyle(
+                    color: _isMyTurn ? Colors.green[700] : Colors.grey[700],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _chatService.getMessages(
@@ -318,6 +378,25 @@ class _ChatScreenState extends State<ChatScreen> {
                   return const Center(
                     child: Text('No messages yet. Start the conversation!'),
                   );
+                }
+
+                // Update selected numbers and their selectors from messages
+                _selectedNumbers = {};
+                _numberSelectors = {};
+                for (var message in messages) {
+                  if (message['text'] != null) {
+                    final number = int.tryParse(message['text'].toString());
+                    if (number != null && number >= 1 && number <= 10) {
+                      _selectedNumbers.add(number);
+                      _numberSelectors[number] =
+                          message['senderId'] ?? 'Unknown';
+                    }
+                  }
+                }
+
+                // Initialize turn order if not already done
+                if (_turnOrder.isEmpty) {
+                  _initializeTurnOrder();
                 }
 
                 return ListView.builder(
@@ -360,7 +439,13 @@ class _ChatScreenState extends State<ChatScreen> {
                                   color: Colors.grey,
                                 ),
                               ),
-                            Text(message['text'] ?? ''),
+                            Text(
+                              message['text'] ?? '',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             Text(
                               _formatTimestamp(message['timestamp']),
                               style: const TextStyle(
@@ -378,7 +463,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
@@ -390,29 +475,78 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(24)),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                    ),
-                    maxLines: null,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
+                Text(
+                  _isMyTurn
+                      ? 'Select a number (1-10)'
+                      : 'Waiting for your turn...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _isMyTurn ? Colors.black : Colors.grey,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: List.generate(10, (index) {
+                    final number = index + 1;
+                    final isSelected = _selectedNumbers.contains(number);
+                    final selectorId = _numberSelectors[number];
+                    final isSelectedByCurrentUser =
+                        selectorId == _chatService.currentUserId;
+
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      transform: Matrix4.identity()
+                        ..scale(isSelected ? 0.9 : 1.0),
+                      child: ElevatedButton(
+                        onPressed: (!_isMyTurn || isSelected)
+                            ? null
+                            : () => _sendNumber(number),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isSelected
+                              ? (isSelectedByCurrentUser
+                                  ? Colors.green
+                                  : Colors.grey)
+                              : (_isMyTurn
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey[300]),
+                          padding: const EdgeInsets.all(16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              number.toString(),
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: isSelected
+                                    ? Colors.grey[400]
+                                    : Colors.white,
+                              ),
+                            ),
+                            if (isSelected)
+                              Text(
+                                isSelectedByCurrentUser ? 'You' : 'Selected',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isSelectedByCurrentUser
+                                      ? Colors.green[700]
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                 ),
               ],
             ),
@@ -429,7 +563,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
