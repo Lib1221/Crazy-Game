@@ -74,51 +74,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
               final participants = chat['participants'] as Map<String, dynamic>;
               final metadata = chat['metadata'] as Map<String, dynamic>?;
 
-              // Print group chat data in terminal
-              print('\n========== GROUP CHAT ${index + 1} ==========');
-              print('Chat ID: ${chat['chatId']}');
-              print('Name: ${chat['name']}');
-              print('Created At: ${chat['createdAt']}');
-              print('Created By: ${chat['createdBy']}');
-              print('Last Message: ${chat['lastMessage']}');
-              print('Last Message Time: ${chat['lastMessageTime']}');
-              print('Last Message Sender: ${chat['lastMessageSender']}');
-
-              if (metadata != null) {
-                print('\n--- Metadata ---');
-                print('Group Name: ${metadata['name']}');
-                print('Is Active: ${metadata['isActive']}');
-                print('Total Messages: ${metadata['totalMessages']}');
-                print('Last Activity: ${metadata['lastActivity']}');
-                print('Read By: ${metadata['readBy']}');
-              }
-
-              print('\n--- Participants ---');
-              participants.forEach((userId, participantData) {
-                print('\nParticipant ID: $userId');
-                print('  Name: ${participantData['name']}');
-                print('  Email: ${participantData['email']}');
-                print('  Role: ${participantData['role']}');
-                print('  Joined At: ${participantData['joinedAt']}');
-                print('  Last Activity: ${participantData['lastActivity']}');
-                print('  Last Read: ${participantData['lastRead']}');
-              });
-
-              final messages = chat['messages'] as Map<String, dynamic>?;
-              if (messages != null && messages.isNotEmpty) {
-                print('\n--- Recent Messages ---');
-                messages.forEach((messageId, messageData) {
-                  print('\nMessage ID: $messageId');
-                  print('  Sender ID: ${messageData['senderId']}');
-                  print('  Sender Name: ${messageData['senderName']}');
-                  print('  Sender Email: ${messageData['senderEmail']}');
-                  print('  Content: ${messageData['content']}');
-                  print('  Timestamp: ${messageData['timestamp']}');
-                  print('  Type: ${messageData['type']}');
-                });
-              }
-              print('\n================================\n');
-
               return ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Theme.of(context).primaryColor,

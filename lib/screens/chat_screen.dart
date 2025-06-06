@@ -28,99 +28,158 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _currentTurnUserId;
   List<String> _turnOrder = [];
   int _currentTurnIndex = 0;
+  bool _isGameStarted = false;
+  List<Map<String, dynamic>> _participantEmails = [];
 
   @override
   void initState() {
     super.initState();
+    print('\n========== CHAT SCREEN LOADED ==========');
+    print('Loading chat: ${widget.chatId}');
     _loadChatInfo();
     _markMessagesAsRead();
   }
 
   Future<void> _loadChatInfo() async {
     try {
-      final chatData = await _chatService.getChatInfo(widget.chatId);
-      _isGroupChat = chatData['type'] == 'group';
+      print('\n========== CHAT SCREEN LOADED ==========');
+      print('Loading chat: ${widget.chatId}');
 
-      // Print all group chat data in a structured format
-      print('\n========== GROUP CHAT DETAILS ==========');
-      print('Chat ID: ${widget.chatId}');
-      print('Chat Type: ${chatData['type']}');
-      print('\n--- Basic Information ---');
-      print('Name: ${chatData['name']}');
-      print('Created At: ${chatData['createdAt']}');
-      print('Created By: ${chatData['createdBy']}');
-      print('Last Message: ${chatData['lastMessage']}');
-      print('Last Message Time: ${chatData['lastMessageTime']}');
-      print('Last Message Sender: ${chatData['lastMessageSender']}');
+      final chatData = await _chatService.getChatParticipantInfo(widget.chatId);
+      print('\nLoading chat info for: ${widget.chatId}');
+      print(chatData);
+      print('Database connection state: true');
+
+      // Check if it's a group chat based on the data structure
+      _isGroupChat = chatData['type'] == 'group' || chatData['isGroup'] == true;
+      print('Chat type: ${_isGroupChat ? 'group' : 'direct'}');
+
+      // Clear previous data
+      _participantEmails = [];
 
       if (_isGroupChat) {
+        print('\nFetching group participants...');
         final participants =
             await _chatService.getGroupParticipants(widget.chatId);
 
-        print('\n--- Metadata Information ---');
-        final metadata = chatData['metadata'] as Map<String, dynamic>?;
-        if (metadata != null) {
-          print('Group Name: ${metadata['name']}');
-          print('Is Active: ${metadata['isActive']}');
-          print('Total Messages: ${metadata['totalMessages']}');
-          print('Last Activity: ${metadata['lastActivity']}');
-          print('Read By: ${metadata['readBy']}');
+        // Load turn information from realtime database
+        final turnInfo = await _chatService.getGroupChatTurn(widget.chatId);
+        if (turnInfo != null) {
+          _turnOrder = List<String>.from(turnInfo['turnOrder'] ?? []);
+          _currentTurnIndex = turnInfo['currentTurnIndex'] ?? 0;
+          _currentTurnUserId = turnInfo['currentTurnUserId'];
+          _isGameStarted = true;
+          print('\nLoaded turn information from database:');
+          print('Current turn index: $_currentTurnIndex');
+          print('Current turn user: $_currentTurnUserId');
         }
 
-        print('\n--- Participants Information ---');
-        print('Total Participants: ${participants.length}');
+        print('\n========== PARTICIPANT EMAILS ==========');
+        print('Chat ID: ${widget.chatId}');
 
-        participants.forEach((userId, participantData) {
-          print('\nParticipant Details:');
-          print('  ID: $userId');
-          print('  Name: ${participantData['name']}');
-          print('  Email: ${participantData['email']}');
-          print('  Role: ${participantData['role']}');
-          print('  Joined At: ${participantData['joinedAt']}');
-          print('  Last Activity: ${participantData['lastActivity']}');
-          print('  Last Read: ${participantData['lastRead']}');
-        });
+        // Extract and validate participant emails
+        if (participants is Map<String, dynamic>) {
+          participants.forEach((userId, participantData) {
+            if (participantData is Map<String, dynamic>) {
+              final email = participantData['email'];
+              final name = participantData['name'];
+              final role = participantData['role'];
 
-        // Print messages if available
-        final messages = chatData['messages'] as Map<String, dynamic>?;
-        if (messages != null && messages.isNotEmpty) {
-          print('\n--- Recent Messages ---');
-          messages.forEach((messageId, messageData) {
-            print('\nMessage ID: $messageId');
-            print('  Sender ID: ${messageData['senderId']}');
-            print('  Sender Name: ${messageData['senderName']}');
-            print('  Sender Email: ${messageData['senderEmail']}');
-            print('  Content: ${messageData['content']}');
-            print('  Timestamp: ${messageData['timestamp']}');
-            print('  Type: ${messageData['type']}');
-          });
-        }
+              if (email != null && email is String && email.contains('@')) {
+                _participantEmails.add({
+                  'id': userId,
+                  'email': email.toLowerCase().trim(),
+                  'name': (name is String && name.trim().isNotEmpty)
+                      ? name.trim()
+                      : 'Unknown',
+                  'role': (role is String && role.trim().isNotEmpty)
+                      ? role.trim()
+                      : 'member',
+                });
 
-        if (mounted) {
-          setState(() {
-            _groupInfo = {
-              'name': chatData['name'],
-              'participants': participants,
-            };
+                print('✓ Extracted Email: ${email.toLowerCase().trim()}');
+              } else {
+                print('⚠️ Skipped: Missing or invalid email for user $userId');
+              }
+            }
           });
         }
       } else {
-        final info = await _chatService.getChatParticipantInfo(widget.chatId);
-        print('\n--- Direct Chat Information ---');
-        print('Participant ID: ${info['id']}');
-        print('Name: ${info['name']}');
-        print('Online Status: ${info['isOnline']}');
-        print('Last Login: ${info['lastLogin']}');
-
-        if (mounted) {
-          setState(() {
-            _participantInfo = info;
+        // For direct chat, add both participants
+        if (chatData['email'] != null &&
+            chatData['email'].toString().contains('@')) {
+          _participantEmails.add({
+            'id': chatData['id'],
+            'email': chatData['email'].toString().toLowerCase().trim(),
+            'name': chatData['name'] ?? 'Unknown',
+            'role': 'member',
           });
+          print('✓ Extracted Email (Direct): ${chatData['email']}');
         }
       }
-      print('\n========== END OF CHAT DETAILS ==========\n');
+
+      // Print all extracted emails
+      print('\n✅ All Participant Emails Extracted:');
+      for (var p in _participantEmails) {
+        print('- ${p['email']}');
+      }
+      print('=======================================\n');
+
+      // Initialize turn order based on email sequence if not already loaded from database
+      if (_participantEmails.isNotEmpty && _turnOrder.isEmpty) {
+        _turnOrder = _participantEmails.map((p) => p['id'] as String).toList();
+        _currentTurnIndex = 0;
+        _currentTurnUserId = _turnOrder[0];
+        _isGameStarted = true;
+
+        // Store initial turn information in realtime database for group chats
+        if (_isGroupChat && _currentTurnUserId != null) {
+          _chatService.updateGroupChatTurn(
+            groupChatId: widget.chatId,
+            currentTurnUserId: _currentTurnUserId!,
+            currentTurnIndex: _currentTurnIndex,
+            turnOrder: _turnOrder,
+          );
+        }
+
+        // Print turn order
+        print('\n========== TURN ORDER ==========');
+        for (var i = 0; i < _participantEmails.length; i++) {
+          final participant = _participantEmails[i];
+          print('${i + 1}. ${participant['email']}');
+        }
+        print('===============================\n');
+
+        // Send system message about turn order
+        String turnOrderText = _participantEmails.map((p) {
+          if (p['id'] == _chatService.currentUserId) {
+            return 'You';
+          }
+          return p['email'];
+        }).join(' → ');
+
+        _chatService.sendMessage(
+          chatId: widget.chatId,
+          content: 'Game started! Turn order: $turnOrderText',
+          chatType: _isGroupChat ? 'group' : null,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          if (_isGroupChat) {
+            _groupInfo = {
+              'name': chatData['name'] ?? 'Group Chat',
+              'participants': chatData['participants'] ?? {},
+            };
+          } else {
+            _participantInfo = chatData;
+          }
+        });
+      }
     } catch (e) {
-      print('Error loading chat info: $e');
+      print('\nError loading chat info: $e');
+      print('Error details: ${e.toString()}');
     }
   }
 
@@ -131,34 +190,81 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _initializeTurnOrder() {
-    if (_isGroupChat && _groupInfo != null) {
-      final participants = _groupInfo!['participants'] as Map<String, dynamic>;
-      _turnOrder = participants.keys.toList();
-      // Sort turn order by joined time if available
-      _turnOrder.sort((a, b) {
-        final timeA = participants[a]['joinedAt'] ?? 0;
-        final timeB = participants[b]['joinedAt'] ?? 0;
-        return timeA.compareTo(timeB);
-      });
-      _currentTurnIndex = 0;
-      _currentTurnUserId = _turnOrder.isNotEmpty ? _turnOrder[0] : null;
-    } else if (_participantInfo != null) {
-      _turnOrder = [_chatService.currentUserId!, _participantInfo!['id']];
-      _currentTurnIndex = 0;
-      _currentTurnUserId = _turnOrder[0];
-    }
+  bool get _isMyTurn {
+    if (!_isGameStarted) return false;
+
+    // Get current user's email from participant emails
+    final currentUserParticipant = _participantEmails.firstWhere(
+      (p) => p['id'] == _chatService.currentUserId,
+      orElse: () => {'email': '', 'role': 'member'},
+    );
+    final currentUserEmail =
+        currentUserParticipant['email'].toString().toLowerCase();
+
+    // Find current turn participant
+    final currentTurnParticipant = _participantEmails.firstWhere(
+      (p) => p['id'] == _currentTurnUserId,
+      orElse: () => {'email': '', 'role': 'member'},
+    );
+
+    // Check if current user's email matches the current turn participant's email
+    return currentTurnParticipant['email'].toString().toLowerCase() ==
+        currentUserEmail;
   }
 
   void _nextTurn() {
     if (_turnOrder.isEmpty) return;
+
+    // Move to next turn
     _currentTurnIndex = (_currentTurnIndex + 1) % _turnOrder.length;
     _currentTurnUserId = _turnOrder[_currentTurnIndex];
+
+    // Find current player's info
+    final currentPlayer = _participantEmails.firstWhere(
+      (p) => p['id'] == _currentTurnUserId,
+      orElse: () =>
+          {'name': 'Unknown', 'role': 'member', 'email': 'unknown@email.com'},
+    );
+
+    // Print whose turn it is
+    print('\n========== TURN CHANGE ==========');
+    print('Current turn: ${currentPlayer['email']} (${currentPlayer['role']})');
+    print(
+        'Next turn: ${_participantEmails[(_currentTurnIndex + 1) % _participantEmails.length]['email']}');
+    print('================================\n');
+
+    // Update turn information in realtime database for group chats
+    if (_isGroupChat && _currentTurnUserId != null) {
+      _chatService.updateGroupChatTurn(
+        groupChatId: widget.chatId,
+        currentTurnUserId: _currentTurnUserId!,
+        currentTurnIndex: _currentTurnIndex,
+        turnOrder: _turnOrder,
+      );
+    }
+
+    // Send a system message about whose turn it is
+    String nextPlayerName = _currentTurnUserId == _chatService.currentUserId
+        ? 'You'
+        : currentPlayer['name'].toString();
+
+    String roleText = currentPlayer['role'] == 'admin' ? ' (Admin)' : '';
+
+    _chatService.sendMessage(
+      chatId: widget.chatId,
+      content: "It's $nextPlayerName$roleText's turn!",
+      chatType: _isGroupChat ? 'group' : null,
+    );
   }
 
-  bool get _isMyTurn => _currentTurnUserId == _chatService.currentUserId;
-
   void _sendNumber(int number) {
+    if (!_isGameStarted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Game has not started yet')),
+      );
+      return;
+    }
+
     if (!_isMyTurn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please wait for your turn')),
@@ -341,217 +447,275 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_currentTurnUserId != null)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              color: _isMyTurn ? Colors.green[100] : Colors.grey[200],
-              child: Center(
-                child: Text(
-                  _isMyTurn ? 'Your turn!' : 'Waiting for other player...',
-                  style: TextStyle(
-                    color: _isMyTurn ? Colors.green[700] : Colors.grey[700],
-                    fontWeight: FontWeight.bold,
+      body: SafeArea(
+        child: Column(
+          children: [
+            if (_currentTurnUserId != null)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                color: _isMyTurn ? Colors.green[100] : Colors.grey[200],
+                child: Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        _isMyTurn
+                            ? 'Your turn!'
+                            : 'Waiting for other player...',
+                        style: TextStyle(
+                          color:
+                              _isMyTurn ? Colors.green[700] : Colors.grey[700],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (!_isGameStarted)
+                        const Text(
+                          'Game will start when all players join',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      if (_isGameStarted && _participantEmails.isNotEmpty)
+                        Text(
+                          'Current turn: ${_participantEmails.firstWhere(
+                            (p) => p['id'] == _currentTurnUserId,
+                            orElse: () => {'name': 'Unknown', 'role': 'member'},
+                          )['name']} (${_participantEmails.firstWhere(
+                            (p) => p['id'] == _currentTurnUserId,
+                            orElse: () => {'name': 'Unknown', 'role': 'member'},
+                          )['role']})',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
-            ),
-          Expanded(
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _chatService.getMessages(
-                widget.chatId,
-                chatType: _isGroupChat ? 'group' : null,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            Expanded(
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: _chatService.getMessages(
+                  widget.chatId,
+                  chatType: _isGroupChat ? 'group' : null,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
 
-                final messages = snapshot.data ?? [];
+                  final messages = snapshot.data ?? [];
 
-                if (messages.isEmpty) {
-                  return const Center(
-                    child: Text('No messages yet. Start the conversation!'),
-                  );
-                }
+                  if (messages.isEmpty) {
+                    return const Center(
+                      child: Text('No messages yet. Start the conversation!'),
+                    );
+                  }
 
-                // Update selected numbers and their selectors from messages
-                _selectedNumbers = {};
-                _numberSelectors = {};
-                for (var message in messages) {
-                  if (message['text'] != null) {
-                    final number = int.tryParse(message['text'].toString());
-                    if (number != null && number >= 1 && number <= 10) {
-                      _selectedNumbers.add(number);
-                      _numberSelectors[number] =
-                          message['senderId'] ?? 'Unknown';
+                  // Update selected numbers and their selectors from messages
+                  _selectedNumbers = {};
+                  _numberSelectors = {};
+                  for (var message in messages) {
+                    if (message['text'] != null) {
+                      final number = int.tryParse(message['text'].toString());
+                      if (number != null && number >= 1 && number <= 10) {
+                        _selectedNumbers.add(number);
+                        _numberSelectors[number] =
+                            message['senderId'] ?? 'Unknown';
+                      }
                     }
                   }
-                }
 
-                // Initialize turn order if not already done
-                if (_turnOrder.isEmpty) {
-                  _initializeTurnOrder();
-                }
+                  // Initialize turn order if not already done
+                  if (_turnOrder.isEmpty && _participantEmails.isNotEmpty) {
+                    _turnOrder = _participantEmails
+                        .map((p) => p['id'] as String)
+                        .toList();
+                    _currentTurnIndex = 0;
+                    _currentTurnUserId = _turnOrder[0];
+                    _isGameStarted = true;
+                  }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isCurrentUser = message['isCurrentUser'] ?? false;
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      final isCurrentUser = message['isCurrentUser'] ?? false;
 
-                    return Align(
-                      alignment: isCurrentUser
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(
-                          vertical: 4,
-                          horizontal: 8,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8,
-                          horizontal: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isCurrentUser
-                              ? Colors.blue[100]
-                              : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: isCurrentUser
-                              ? CrossAxisAlignment.end
-                              : CrossAxisAlignment.start,
-                          children: [
-                            if (!isCurrentUser)
+                      return Align(
+                        alignment: isCurrentUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 8,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isCurrentUser
+                                ? Colors.blue[100]
+                                : Colors.grey[200],
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: isCurrentUser
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            children: [
+                              if (!isCurrentUser)
+                                Text(
+                                  message['senderName'] ?? 'Unknown',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               Text(
-                                message['senderName'] ?? 'Unknown',
+                                message['text'] ?? '',
                                 style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                _formatTimestamp(message['timestamp']),
+                                style: const TextStyle(
+                                  fontSize: 10,
                                   color: Colors.grey,
                                 ),
                               ),
-                            Text(
-                              message['text'] ?? '',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              _formatTimestamp(message['timestamp']),
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 1,
-                  blurRadius: 3,
-                  offset: const Offset(0, -1),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Text(
-                  _isMyTurn
-                      ? 'Select a number (1-10)'
-                      : 'Waiting for your turn...',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: _isMyTurn ? Colors.black : Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: List.generate(10, (index) {
-                    final number = index + 1;
-                    final isSelected = _selectedNumbers.contains(number);
-                    final selectorId = _numberSelectors[number];
-                    final isSelectedByCurrentUser =
-                        selectorId == _chatService.currentUserId;
-
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      transform: Matrix4.identity()
-                        ..scale(isSelected ? 0.9 : 1.0),
-                      child: ElevatedButton(
-                        onPressed: (!_isMyTurn || isSelected)
-                            ? null
-                            : () => _sendNumber(number),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isSelected
-                              ? (isSelectedByCurrentUser
-                                  ? Colors.green
-                                  : Colors.grey)
-                              : (_isMyTurn
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey[300]),
-                          padding: const EdgeInsets.all(16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            ],
                           ),
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              number.toString(),
-                              style: TextStyle(
-                                fontSize: 20,
-                                color: isSelected
-                                    ? Colors.grey[400]
-                                    : Colors.white,
-                              ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    spreadRadius: 1,
+                    blurRadius: 3,
+                    offset: const Offset(0, -1),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _isMyTurn
+                        ? 'Select a number (1-10)'
+                        : 'Waiting for your turn...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: _isMyTurn ? Colors.black : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 160,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (var i = 0; i < 2; i++)
+                          Expanded(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                for (var j = 0; j < 5; j++)
+                                  Expanded(
+                                    child: _buildNumberButton(i * 5 + j + 1),
+                                  ),
+                              ],
                             ),
-                            if (isSelected)
-                              Text(
-                                isSelectedByCurrentUser ? 'You' : 'Selected',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: isSelectedByCurrentUser
-                                      ? Colors.green[700]
-                                      : Colors.grey[600],
-                                ),
-                              ),
-                          ],
-                        ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNumberButton(int number) {
+    final isSelected = _selectedNumbers.contains(number);
+    final selectorId = _numberSelectors[number];
+    final isSelectedByCurrentUser = selectorId == _chatService.currentUserId;
+
+    return Container(
+      margin: const EdgeInsets.all(4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: (!_isMyTurn || isSelected) ? null : () => _sendNumber(number),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? (isSelectedByCurrentUser ? Colors.green : Colors.grey)
+                  : (_isMyTurn
+                      ? Theme.of(context).primaryColor
+                      : Colors.grey[300]),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: isSelected
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.3),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: const Offset(0, 2),
                       ),
-                    );
-                  }),
-                ),
-              ],
+                    ],
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    number.toString(),
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: isSelected ? Colors.grey[400] : Colors.white,
+                    ),
+                  ),
+                  if (isSelected)
+                    Text(
+                      isSelectedByCurrentUser ? 'You' : 'Selected',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isSelectedByCurrentUser
+                            ? Colors.green[700]
+                            : Colors.grey[600],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

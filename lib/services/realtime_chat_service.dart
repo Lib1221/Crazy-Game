@@ -241,17 +241,26 @@ class RealtimeChatService {
         throw Exception('User not authenticated');
       }
 
-      // Find other participant
-      final otherParticipant = participants.entries.firstWhere(
-        (entry) => entry.key != currentUserId,
-        orElse: () => participants.entries.first,
-      );
+      // Process all participants
+      final processedParticipants = <String, dynamic>{};
+      participants.forEach((userId, data) {
+        if (data is Map) {
+          processedParticipants[userId] = {
+            'id': userId,
+            'name': data['name']?.toString() ?? 'Unknown',
+            'email': data['email']?.toString() ?? '',
+            'isOnline': data['isOnline'] == true,
+            'lastLogin': data['lastLogin'],
+            'role': data['role']?.toString() ?? 'member',
+            'isCurrentUser': userId == currentUserId,
+          };
+        }
+      });
 
       return {
-        'id': otherParticipant.key,
-        'name': otherParticipant.value['name']?.toString() ?? 'Unknown',
-        'isOnline': otherParticipant.value['isOnline'] == true,
-        'lastLogin': otherParticipant.value['lastLogin'],
+        'type': 'group',
+        'participants': processedParticipants,
+        'currentUserId': currentUserId,
       };
     } catch (e) {
       print('Error getting chat participant info: $e');
@@ -1178,6 +1187,36 @@ class RealtimeChatService {
     } catch (e) {
       print('Error setting up group chats stream: $e');
       return Stream.value([]);
+    }
+  }
+
+  Future<Map<String, dynamic>?> getGroupChatTurn(String groupChatId) async {
+    try {
+      final turnRef = _getRef('group_chats/$groupChatId/turn');
+      final turnSnapshot = await turnRef.get();
+      return turnSnapshot.value as Map<String, dynamic>?;
+    } catch (e) {
+      print('Error getting group chat turn: $e');
+      return null;
+    }
+  }
+
+  Future<void> updateGroupChatTurn({
+    required String groupChatId,
+    required String currentTurnUserId,
+    required int currentTurnIndex,
+    required List<String> turnOrder,
+  }) async {
+    try {
+      final turnRef = _getRef('group_chats/$groupChatId/turn');
+      await turnRef.set({
+        'currentTurnUserId': currentTurnUserId,
+        'currentTurnIndex': currentTurnIndex,
+        'turnOrder': turnOrder,
+        'lastUpdated': ServerValue.timestamp,
+      });
+    } catch (e) {
+      print('Error updating group chat turn: $e');
     }
   }
 }
