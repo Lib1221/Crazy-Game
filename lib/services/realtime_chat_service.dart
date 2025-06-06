@@ -715,7 +715,7 @@ class RealtimeChatService {
       if (userData != null) {
         participants[userData['uid']] = {
           'name': userData['name'],
-          'email': email.toLowerCase(), // Store email in lowercase
+          'email': email.toLowerCase(),
           'role': 'member',
           'joinedAt': ServerValue.timestamp,
           'lastActivity': ServerValue.timestamp,
@@ -724,17 +724,23 @@ class RealtimeChatService {
       }
     }
 
+    // Create turn order with all participants
+    final turnOrder = participants.keys.toList();
+    // Start with admin's turn
+    final currentTurnIndex = 0;
+    final currentTurnUserId = turnOrder[currentTurnIndex];
+
     // Create the group chat with all necessary data
     await groupChatRef.set({
-      // Root level fields based on image structure
+      // Root level fields
       'createdAt': ServerValue.timestamp,
       'createdBy': currentUser.uid,
       'type': 'group',
       'participants': participants,
 
-      // Metadata fields based on image structure
+      // Metadata fields
       'metadata': {
-        'name': groupName, // Name is under metadata
+        'name': groupName,
         'isActive': true,
         'totalMessages': 0,
         'lastActivity': ServerValue.timestamp,
@@ -742,7 +748,22 @@ class RealtimeChatService {
           currentUser.uid: ServerValue.timestamp,
         }
       },
-      'messages': {} // Initialize empty messages node
+      'messages': {}, // Initialize empty messages node
+
+      // Initialize turn information
+      'turn': {
+        'currentTurnUserId': currentTurnUserId,
+        'currentTurnIndex': currentTurnIndex,
+        'turnOrder': turnOrder,
+        'lastUpdated': ServerValue.timestamp,
+      },
+
+      // Initialize game state
+      'game': {
+        'selectedNumbers': [],
+        'numberSelectors': {},
+        'lastUpdated': ServerValue.timestamp,
+      }
     });
 
     // Also create a reference in the user's chats
@@ -750,7 +771,7 @@ class RealtimeChatService {
       final userId = participant.key;
       await _getRef('users/$userId/chats/$groupChatId').set({
         'type': 'group',
-        'name': groupName, // Store name here for user's chat list display
+        'name': groupName,
         'joinedAt': ServerValue.timestamp,
         'role': participant.value['role'],
         'lastActivity': ServerValue.timestamp,
@@ -1237,7 +1258,9 @@ class RealtimeChatService {
         'lastUpdated': ServerValue.timestamp,
       });
     } catch (e) {
-      print('Error resetting game state: $e');
+      if (kDebugMode) {
+        print('Error resetting game state: $e');
+      }
       rethrow;
     }
   }

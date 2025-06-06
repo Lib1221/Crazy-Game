@@ -36,6 +36,10 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _loadChatInfo();
     _markMessagesAsRead();
+    // Reset game state when starting
+    if (_isGroupChat) {
+      _chatService.resetGameState(widget.chatId);
+    }
   }
 
   Future<void> _loadChatInfo() async {
@@ -221,6 +225,12 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    // Get current player's info
+    final currentPlayer = _participantEmails.firstWhere(
+      (p) => p['id'] == _chatService.currentUserId,
+      orElse: () => {'name': 'Unknown', 'role': 'member'},
+    );
+
     // Update game state in realtime database
     _chatService.updateGameState(
       chatId: widget.chatId,
@@ -228,10 +238,10 @@ class _ChatScreenState extends State<ChatScreen> {
       userId: _chatService.currentUserId!,
     );
 
-    // Send message about the number selection
+    // Send message about the number selection with player info
     _chatService.sendMessage(
       chatId: widget.chatId,
-      content: number.toString(),
+      content: '${currentPlayer['name']} selected number $number',
       chatType: _isGroupChat ? 'group' : null,
     );
 
@@ -399,13 +409,20 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             StreamBuilder<Map<String, dynamic>>(
               stream: _chatService.getGroupChatTurn(widget.chatId),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  final turnData = snapshot.data!;
-                  _currentTurnUserId = turnData['currentTurnUserId'];
-                  _currentTurnIndex = turnData['currentTurnIndex'] ?? 0;
-                  _turnOrder = List<String>.from(turnData['turnOrder'] ?? []);
-                  _isGameStarted = true;
+              builder: (context, turnSnapshot) {
+                if (turnSnapshot.hasData) {
+                  final turnData = turnSnapshot.data!;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _currentTurnUserId = turnData['currentTurnUserId'];
+                        _currentTurnIndex = turnData['currentTurnIndex'] ?? 0;
+                        _turnOrder =
+                            List<String>.from(turnData['turnOrder'] ?? []);
+                        _isGameStarted = true;
+                      });
+                    }
+                  });
                 }
 
                 return Container(
@@ -485,6 +502,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, index) {
                       final message = messages[index];
                       final isCurrentUser = message['isCurrentUser'] ?? false;
+                      final isSystemMessage =
+                          message['text']?.toString().startsWith("It's") ??
+                              false;
+                      final isNumberSelection = message['text']
+                              ?.toString()
+                              .contains('selected number') ??
+                          false;
 
                       return Align(
                         alignment: isCurrentUser
@@ -500,9 +524,13 @@ class _ChatScreenState extends State<ChatScreen> {
                             horizontal: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: isCurrentUser
-                                ? Colors.blue[100]
-                                : Colors.grey[200],
+                            color: isSystemMessage
+                                ? Colors.amber[100]
+                                : isNumberSelection
+                                    ? Colors.green[100]
+                                    : isCurrentUser
+                                        ? Colors.blue[100]
+                                        : Colors.grey[200],
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -510,7 +538,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ? CrossAxisAlignment.end
                                 : CrossAxisAlignment.start,
                             children: [
-                              if (!isCurrentUser)
+                              if (!isCurrentUser && !isSystemMessage)
                                 Text(
                                   message['senderName'] ?? 'Unknown',
                                   style: const TextStyle(
@@ -520,9 +548,14 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ),
                               Text(
                                 message['text'] ?? '',
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
+                                style: TextStyle(
+                                  fontSize: isSystemMessage ? 14 : 24,
+                                  fontWeight: isSystemMessage
+                                      ? FontWeight.normal
+                                      : FontWeight.bold,
+                                  color: isSystemMessage
+                                      ? Colors.amber[900]
+                                      : Colors.black,
                                 ),
                               ),
                               Text(
@@ -557,37 +590,15 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  StreamBuilder<Map<String, dynamic>>(
-                    stream: _chatService.getGroupChatTurn(widget.chatId),
-                    builder: (context, turnSnapshot) {
-                      if (turnSnapshot.hasData) {
-                        final turnData = turnSnapshot.data!;
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            setState(() {
-                              _currentTurnUserId =
-                                  turnData['currentTurnUserId'];
-                              _currentTurnIndex =
-                                  turnData['currentTurnIndex'] ?? 0;
-                              _turnOrder = List<String>.from(
-                                  turnData['turnOrder'] ?? []);
-                              _isGameStarted = true;
-                            });
-                          }
-                        });
-                      }
-
-                      return Text(
-                        _isMyTurn
-                            ? 'Select a number (1-10)'
-                            : 'Waiting for your turn...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: _isMyTurn ? Colors.black : Colors.grey,
-                        ),
-                      );
-                    },
+                  Text(
+                    _isMyTurn
+                        ? 'Select a number (1-10)'
+                        : 'Waiting for your turn...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: _isMyTurn ? Colors.black : Colors.grey,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -675,58 +686,51 @@ class _ChatScreenState extends State<ChatScreen> {
     final isSelectedByCurrentUser = selectorId == _chatService.currentUserId;
     final isCurrentUserTurn = _isMyTurn;
 
-    return Container(
-      margin: const EdgeInsets.all(4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: (!isCurrentUserTurn || isSelected)
-              ? null
-              : () => _sendNumber(number),
+    return GestureDetector(
+      onTap:
+          (!isCurrentUserTurn || isSelected) ? null : () => _sendNumber(number),
+      child: Container(
+        margin: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isSelectedByCurrentUser ? Colors.green : Colors.grey)
+              : (isCurrentUserTurn
+                  ? Theme.of(context).primaryColor
+                  : Colors.grey[300]),
           borderRadius: BorderRadius.circular(8),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? (isSelectedByCurrentUser ? Colors.green : Colors.grey)
-                  : (isCurrentUserTurn
-                      ? Theme.of(context).primaryColor
-                      : Colors.grey[300]),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: isSelected
-                  ? []
-                  : [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.3),
-                        spreadRadius: 1,
-                        blurRadius: 3,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    number.toString(),
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: isSelected ? Colors.grey[400] : Colors.white,
-                    ),
+          boxShadow: isSelected
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.3),
+                    spreadRadius: 1,
+                    blurRadius: 3,
+                    offset: const Offset(0, 2),
                   ),
-                  if (isSelected)
-                    Text(
-                      isSelectedByCurrentUser ? 'You' : 'Selected',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: isSelectedByCurrentUser
-                            ? Colors.green[700]
-                            : Colors.grey[600],
-                      ),
-                    ),
                 ],
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                number.toString(),
+                style: TextStyle(
+                  fontSize: 20,
+                  color: isSelected ? Colors.grey[400] : Colors.white,
+                ),
               ),
-            ),
+              if (isSelected)
+                Text(
+                  isSelectedByCurrentUser ? 'You' : 'Selected',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isSelectedByCurrentUser
+                        ? Colors.green[700]
+                        : Colors.grey[600],
+                  ),
+                ),
+            ],
           ),
         ),
       ),
