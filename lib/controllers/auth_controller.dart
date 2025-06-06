@@ -8,7 +8,9 @@ class AuthController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final RealtimeChatService _chatService = RealtimeChatService();
 
-  final Rx<User?> currentUser = Rx<User?>(null);
+  final Rx<User?> _user = Rx<User?>(null);
+  User? get user => _user.value;
+
   final Rx<Map<String, dynamic>?> userData = Rx<Map<String, dynamic>?>(null);
   final RxBool isLoading = false.obs;
   final RxString errorMessage = ''.obs;
@@ -16,17 +18,23 @@ class AuthController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    currentUser.value = _auth.currentUser;
-    _auth.authStateChanges().listen((User? user) {
-      currentUser.value = user;
-      if (user != null) {
-        _loadUserData(user.uid);
-        Get.offAllNamed('/chats');
-      } else {
-        userData.value = null;
-        Get.offAllNamed('/auth');
-      }
-    });
+    _user.bindStream(_chatService.authStateChanges);
+    ever(_user, _handleAuthChanged);
+  }
+
+  @override
+  void onClose() {
+    _user.close();
+    super.onClose();
+  }
+
+  void _handleAuthChanged(User? user) {
+    if (user != null) {
+      _loadUserData(user.uid);
+      Get.offAllNamed('/chats');
+    } else {
+      Get.offAllNamed('/auth');
+    }
   }
 
   Future<void> _loadUserData(String uid) async {
@@ -44,124 +52,109 @@ class AuthController extends GetxController {
     }
   }
 
-  Future<void> signInWithEmailAndPassword(String email, String password) async {
+  Future<void> signIn(String email, String password) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
-
-      final UserCredential userCredential =
-          await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // Update last login time
-      await _firestore
-          .collection('users')
-          .doc(userCredential.user?.uid)
-          .update({
-        'lastLogin': FieldValue.serverTimestamp(),
-      });
-
-      // Update user's online status
-      await _chatService.updateUserStatus(true);
+      await _chatService.signIn(email, password);
     } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Error: ${e.code} - ${e.message}');
-      switch (e.code) {
-        case 'user-not-found':
-          errorMessage.value = 'No user found for that email.';
-          break;
-        case 'wrong-password':
-          errorMessage.value = 'Wrong password provided.';
-          break;
-        case 'invalid-email':
-          errorMessage.value = 'The email address is not valid.';
-          break;
-        default:
-          errorMessage.value = 'An error occurred during sign in: ${e.message}';
-      }
-      rethrow;
+      _handleAuthError(e);
     } catch (e) {
-      print('Sign In Error: $e');
-      errorMessage.value = 'An unexpected error occurred: $e';
-      rethrow;
+      errorMessage.value = 'An unexpected error occurred. Please try again.';
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<void> createUserWithEmailAndPassword(
-      String email, String password, String name) async {
+  Future<void> signUp(String email, String password, String name) async {
     try {
       isLoading.value = true;
       errorMessage.value = '';
 
-      // Create user in Firebase Auth
-      final UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // Update user profile with name
-      await userCredential.user?.updateDisplayName(name);
-
-      // Store user data in Firestore
-      await _firestore.collection('users').doc(userCredential.user?.uid).set({
-        'name': name,
-        'email': email,
-        'createdAt': FieldValue.serverTimestamp(),
-        'lastLogin': FieldValue.serverTimestamp(),
-      });
-
-      // Store user data in Realtime Database
-      await _chatService.storeUserInfo(
-        userId: userCredential.user!.uid,
-        name: name,
-        email: email,
-      );
-
-      // Update user's online status
-      await _chatService.updateUserStatus(true);
-    } on FirebaseAuthException catch (e) {
-      print('Firebase Auth Error: ${e.code} - ${e.message}');
-      switch (e.code) {
-        case 'weak-password':
-          errorMessage.value = 'The password provided is too weak.';
-          break;
-        case 'email-already-in-use':
-          errorMessage.value = 'An account already exists for that email.';
-          break;
-        case 'invalid-email':
-          errorMessage.value = 'The email address is not valid.';
-          break;
-        default:
-          errorMessage.value =
-              'An error occurred during registration: ${e.message}';
+      // Check network connectivity first
+      try {
+        await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'network-request-failed') {
+          throw Exception(
+              'Please check your internet connection and try again.');
+        }
+        rethrow;
       }
-      rethrow;
+
+      // If signup successful, update profile and store user data
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.updateDisplayName(name);
+        await _chatService.storeUserInfo(
+          userId: user.uid,
+          name: name,
+          email: email,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      _handleAuthError(e);
     } catch (e) {
-      print('Registration Error: $e');
-      errorMessage.value = 'An unexpected error occurred: $e';
-      rethrow;
+      errorMessage.value = e.toString();
+      Get.snackbar(
+        'Error',
+        errorMessage.value,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     } finally {
       isLoading.value = false;
     }
+  }
+
+  void _handleAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+        errorMessage.value = 'No user found with this email.';
+        break;
+      case 'wrong-password':
+        errorMessage.value = 'Wrong password provided.';
+        break;
+      case 'email-already-in-use':
+        errorMessage.value = 'An account already exists with this email.';
+        break;
+      case 'invalid-email':
+        errorMessage.value = 'Please enter a valid email address.';
+        break;
+      case 'weak-password':
+        errorMessage.value =
+            'Password is too weak. Please use a stronger password.';
+        break;
+      case 'network-request-failed':
+        errorMessage.value =
+            'Please check your internet connection and try again.';
+        break;
+      default:
+        errorMessage.value = 'An error occurred. Please try again.';
+    }
+    Get.snackbar(
+      'Error',
+      errorMessage.value,
+      snackPosition: SnackPosition.BOTTOM,
+    );
   }
 
   Future<void> signOut() async {
     try {
-      // Update user's online status before signing out
-      if (_auth.currentUser != null) {
-        await _chatService.updateUserStatus(false);
-      }
-      await _auth.signOut();
-      userData.value = null;
-      Get.offAllNamed('/auth');
+      await _chatService.logout();
     } catch (e) {
-      print('Sign Out Error: $e');
-      errorMessage.value = 'Error signing out: $e';
-      rethrow;
+      Get.snackbar(
+        'Error',
+        'Failed to sign out',
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
@@ -173,25 +166,22 @@ class AuthController extends GetxController {
     String? bio,
   }) async {
     try {
-      if (currentUser.value != null) {
+      if (user != null) {
         final updates = <String, dynamic>{
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
         if (name != null) {
           updates['name'] = name;
-          await currentUser.value!.updateDisplayName(name);
+          await user!.updateDisplayName(name);
         }
         if (status != null) updates['status'] = status;
         if (photoUrl != null) updates['photoUrl'] = photoUrl;
         if (phoneNumber != null) updates['phoneNumber'] = phoneNumber;
         if (bio != null) updates['bio'] = bio;
 
-        await _firestore
-            .collection('users')
-            .doc(currentUser.value!.uid)
-            .update(updates);
-        await _loadUserData(currentUser.value!.uid);
+        await _firestore.collection('users').doc(user!.uid).update(updates);
+        await _loadUserData(user!.uid);
       }
     } catch (e) {
       Get.snackbar(
@@ -209,7 +199,7 @@ class AuthController extends GetxController {
     String? language,
   }) async {
     try {
-      if (currentUser.value != null) {
+      if (user != null) {
         final updates = <String, dynamic>{
           'updatedAt': FieldValue.serverTimestamp(),
         };
@@ -224,11 +214,8 @@ class AuthController extends GetxController {
           updates['settings.language'] = language;
         }
 
-        await _firestore
-            .collection('users')
-            .doc(currentUser.value!.uid)
-            .update(updates);
-        await _loadUserData(currentUser.value!.uid);
+        await _firestore.collection('users').doc(user!.uid).update(updates);
+        await _loadUserData(user!.uid);
       }
     } catch (e) {
       Get.snackbar(
@@ -240,5 +227,5 @@ class AuthController extends GetxController {
     }
   }
 
-  bool get isAuthenticated => currentUser.value != null;
+  bool get isAuthenticated => user != null;
 }

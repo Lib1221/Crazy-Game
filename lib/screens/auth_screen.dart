@@ -10,12 +10,22 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
-  final _authController = Get.find<AuthController>();
-  bool _isSignUp = false;
+  late final AuthController _authController;
+  late final GlobalKey<FormState> _formKey;
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
+  late final TextEditingController _nameController;
+  bool _isLogin = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _authController = Get.put(AuthController());
+    _formKey = GlobalKey<FormState>();
+    _emailController = TextEditingController();
+    _passwordController = TextEditingController();
+    _nameController = TextEditingController();
+  }
 
   @override
   void dispose() {
@@ -25,33 +35,28 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void _toggleAuthMode() {
-    setState(() {
-      _isSignUp = !_isSignUp;
-      _authController.errorMessage.value =
-          ''; // Clear error when switching modes
-    });
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    try {
-      if (_isSignUp) {
-        await _authController.createUserWithEmailAndPassword(
-          _emailController.text.trim(),
-          _passwordController.text,
-          _nameController.text.trim(),
-        );
-      } else {
-        await _authController.signInWithEmailAndPassword(
-          _emailController.text.trim(),
-          _passwordController.text,
+  void _submitForm() async {
+    if (_formKey.currentState!.validate()) {
+      try {
+        if (_isLogin) {
+          await _authController.signIn(
+            _emailController.text.trim(),
+            _passwordController.text,
+          );
+        } else {
+          await _authController.signUp(
+            _emailController.text.trim(),
+            _passwordController.text,
+            _nameController.text.trim(),
+          );
+        }
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          e.toString(),
+          snackPosition: SnackPosition.BOTTOM,
         );
       }
-    } catch (e) {
-      // Error is already handled in the controller
-      print('Auth Error: $e');
     }
   }
 
@@ -59,102 +64,105 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isSignUp ? 'Sign Up' : 'Login'),
+        title: Text(_isLogin ? 'Login' : 'Sign Up'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_isSignUp)
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
+      body: Obx(() {
+        if (_authController.isLoading.value) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Please wait...'),
+              ],
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!_isLogin)
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Name',
+                      prefixIcon: Icon(Icons.person),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your name';
+                      }
+                      return null;
+                    },
+                    textInputAction: TextInputAction.next,
                   ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your name';
+                      return 'Please enter your email';
+                    }
+                    if (!GetUtils.isEmail(value)) {
+                      return 'Please enter a valid email';
                     }
                     return null;
                   },
+                  textInputAction: TextInputAction.next,
                 ),
-              if (_isSignUp) const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _passwordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submitForm(),
                 ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
-                  }
-                  if (!value.contains('@')) {
-                    return 'Please enter a valid email';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _submitForm,
+                  child: Text(_isLogin ? 'Login' : 'Sign Up'),
                 ),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter your password';
-                  }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              Obx(() {
-                if (_authController.isLoading.value) {
-                  return const CircularProgressIndicator();
-                }
-                return Column(
-                  children: [
-                    if (_authController.errorMessage.value.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Text(
-                          _authController.errorMessage.value,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ElevatedButton(
-                      onPressed: _submit,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                      ),
-                      child: Text(_isSignUp ? 'Sign Up' : 'Login'),
-                    ),
-                    TextButton(
-                      onPressed: _toggleAuthMode,
-                      child: Text(
-                        _isSignUp
-                            ? 'Already have an account? Login'
-                            : 'Don\'t have an account? Sign Up',
-                      ),
-                    ),
-                  ],
-                );
-              }),
-            ],
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _isLogin = !_isLogin;
+                    });
+                  },
+                  child: Text(_isLogin
+                      ? 'Don\'t have an account? Sign Up'
+                      : 'Already have an account? Login'),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 }

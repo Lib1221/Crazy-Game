@@ -90,5 +90,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'crazy-game-3c761.firebasestorage.app',
     measurementId: 'G-8PSCFECK5E',
   );
-
 }

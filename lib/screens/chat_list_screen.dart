@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import '../services/realtime_chat_service.dart';
 import 'chat_screen.dart';
-import 'search_user_screen.dart';
 import 'auth_screen.dart';
+import 'create_group_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -14,35 +15,42 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   final RealtimeChatService _chatService = RealtimeChatService();
 
+  String _getParticipantEmails(Map<String, dynamic> participants) {
+    final emails = <String>[];
+    for (var participant in participants.values) {
+      if (participant is Map && participant['email'] != null) {
+        emails.add(participant['email']);
+      }
+    }
+    return emails.join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chats'),
+        title: const Text('Group Chats'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.group_add),
+            onPressed: () async {
+              final result = await Get.to(() => const CreateGroupScreen());
+              if (result != null) {
+                setState(() {});
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              try {
-                await _chatService.logout();
-                if (mounted) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const AuthScreen()),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error logging out: $e')),
-                  );
-                }
-              }
+              await _chatService.logout();
+              Get.offAll(() => const AuthScreen());
             },
           ),
         ],
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _chatService.getUserChats(),
+        stream: _chatService.getGroupChatsData(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -53,10 +61,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
           }
 
           final chats = snapshot.data ?? [];
-
           if (chats.isEmpty) {
             return const Center(
-              child: Text('No chats yet. Start a conversation!'),
+              child: Text('No group chats yet. Create a new group!'),
             );
           }
 
@@ -64,83 +71,88 @@ class _ChatListScreenState extends State<ChatListScreen> {
             itemCount: chats.length,
             itemBuilder: (context, index) {
               final chat = chats[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    child: Text(
-                      chat['name'][0].toUpperCase(),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  title: Text(chat['name']),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        chat['lastMessage'] ?? 'No messages yet',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        chat['otherUserEmail'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (chat['isUnread'] == true)
-                        Container(
-                          width: 12,
-                          height: 12,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      Text(
-                        _formatTimestamp(chat['lastMessageTime']),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatScreen(
-                          chatId: chat['chatId'],
-                          chatName: chat['name'],
-                        ),
-                      ),
-                    );
-                  },
+              final participants = chat['participants'] as Map<String, dynamic>;
+              final metadata = chat['metadata'] as Map<String, dynamic>?;
+
+              // Print group chat data in terminal
+              print('\n========== GROUP CHAT ${index + 1} ==========');
+              print('Chat ID: ${chat['chatId']}');
+              print('Name: ${chat['name']}');
+              print('Created At: ${chat['createdAt']}');
+              print('Created By: ${chat['createdBy']}');
+              print('Last Message: ${chat['lastMessage']}');
+              print('Last Message Time: ${chat['lastMessageTime']}');
+              print('Last Message Sender: ${chat['lastMessageSender']}');
+
+              if (metadata != null) {
+                print('\n--- Metadata ---');
+                print('Group Name: ${metadata['name']}');
+                print('Is Active: ${metadata['isActive']}');
+                print('Total Messages: ${metadata['totalMessages']}');
+                print('Last Activity: ${metadata['lastActivity']}');
+                print('Read By: ${metadata['readBy']}');
+              }
+
+              print('\n--- Participants ---');
+              participants.forEach((userId, participantData) {
+                print('\nParticipant ID: $userId');
+                print('  Name: ${participantData['name']}');
+                print('  Email: ${participantData['email']}');
+                print('  Role: ${participantData['role']}');
+                print('  Joined At: ${participantData['joinedAt']}');
+                print('  Last Activity: ${participantData['lastActivity']}');
+                print('  Last Read: ${participantData['lastRead']}');
+              });
+
+              final messages = chat['messages'] as Map<String, dynamic>?;
+              if (messages != null && messages.isNotEmpty) {
+                print('\n--- Recent Messages ---');
+                messages.forEach((messageId, messageData) {
+                  print('\nMessage ID: $messageId');
+                  print('  Sender ID: ${messageData['senderId']}');
+                  print('  Sender Name: ${messageData['senderName']}');
+                  print('  Sender Email: ${messageData['senderEmail']}');
+                  print('  Content: ${messageData['content']}');
+                  print('  Timestamp: ${messageData['timestamp']}');
+                  print('  Type: ${messageData['type']}');
+                });
+              }
+              print('\n================================\n');
+
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  child: const Icon(Icons.group, color: Colors.white),
                 ),
+                title: Text(chat['name']),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chat['lastMessage'] ?? 'No messages yet',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'Participants: ${participants.length}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  Get.to(() => ChatScreen(
+                        chatId: chat['chatId'],
+                        chatName: chat['name'],
+                        chatType: 'group',
+                      ));
+                },
               );
             },
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const SearchUserScreen(),
-            ),
-          );
-        },
-        child: const Icon(Icons.person_add),
       ),
     );
   }
