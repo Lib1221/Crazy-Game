@@ -1190,15 +1190,23 @@ class RealtimeChatService {
     }
   }
 
-  Future<Map<String, dynamic>?> getGroupChatTurn(String groupChatId) async {
-    try {
-      final turnRef = _getRef('group_chats/$groupChatId/turn');
-      final turnSnapshot = await turnRef.get();
-      return turnSnapshot.value as Map<String, dynamic>?;
-    } catch (e) {
-      print('Error getting group chat turn: $e');
-      return null;
-    }
+  Stream<Map<String, dynamic>> getGroupChatTurn(String groupChatId) {
+    return _database
+        .ref()
+        .child('group_chats')
+        .child(groupChatId)
+        .child('turn')
+        .onValue
+        .map((event) {
+      final data = event.snapshot.value as Map<dynamic, dynamic>? ?? {};
+      return {
+        'currentTurnUserId': data['currentTurnUserId'],
+        'currentTurnIndex': data['currentTurnIndex'] ?? 0,
+        'turnOrder': data['turnOrder'] ?? [],
+        'lastUpdated':
+            data['lastUpdated'] ?? DateTime.now().millisecondsSinceEpoch,
+      };
+    });
   }
 
   Future<void> updateGroupChatTurn({
@@ -1217,6 +1225,60 @@ class RealtimeChatService {
       });
     } catch (e) {
       print('Error updating group chat turn: $e');
+    }
+  }
+
+  // Get real-time game state
+  Stream<Map<String, dynamic>> getGameState(String chatId) {
+    return _database
+        .ref()
+        .child('group_chats')
+        .child(chatId)
+        .child('game')
+        .onValue
+        .map((event) {
+      final data = event.snapshot.value as Map<dynamic, dynamic>? ?? {};
+      return {
+        'selectedNumbers': data['selectedNumbers'] ?? [],
+        'numberSelectors': data['numberSelectors'] ?? {},
+        'lastUpdated':
+            data['lastUpdated'] ?? DateTime.now().millisecondsSinceEpoch,
+      };
+    });
+  }
+
+  // Update game state
+  Future<void> updateGameState({
+    required String chatId,
+    required int number,
+    required String userId,
+  }) async {
+    try {
+      final gameStateRef =
+          _database.ref().child('group_chats').child(chatId).child('game');
+
+      // Get current state
+      final snapshot = await gameStateRef.get();
+      final currentState = snapshot.value as Map<dynamic, dynamic>? ?? {};
+
+      // Update state
+      final selectedNumbers =
+          List<int>.from(currentState['selectedNumbers'] ?? []);
+      final numberSelectors =
+          Map<String, String>.from(currentState['numberSelectors'] ?? {});
+
+      selectedNumbers.add(number);
+      numberSelectors[number.toString()] = userId;
+
+      // Save updated state
+      await gameStateRef.update({
+        'selectedNumbers': selectedNumbers,
+        'numberSelectors': numberSelectors,
+        'lastUpdated': ServerValue.timestamp,
+      });
+    } catch (e) {
+      print('Error updating game state: $e');
+      rethrow;
     }
   }
 }

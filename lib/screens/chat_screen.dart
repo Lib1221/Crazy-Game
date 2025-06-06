@@ -34,48 +34,52 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    print('\n========== CHAT SCREEN LOADED ==========');
-    print('Loading chat: ${widget.chatId}');
     _loadChatInfo();
     _markMessagesAsRead();
   }
 
   Future<void> _loadChatInfo() async {
     try {
-      print('\n========== CHAT SCREEN LOADED ==========');
-      print('Loading chat: ${widget.chatId}');
-
       final chatData = await _chatService.getChatParticipantInfo(widget.chatId);
-      print('\nLoading chat info for: ${widget.chatId}');
-      print(chatData);
-      print('Database connection state: true');
-
-      // Check if it's a group chat based on the data structure
       _isGroupChat = chatData['type'] == 'group' || chatData['isGroup'] == true;
-      print('Chat type: ${_isGroupChat ? 'group' : 'direct'}');
-
-      // Clear previous data
       _participantEmails = [];
 
       if (_isGroupChat) {
-        print('\nFetching group participants...');
         final participants =
             await _chatService.getGroupParticipants(widget.chatId);
 
-        // Load turn information from realtime database
-        final turnInfo = await _chatService.getGroupChatTurn(widget.chatId);
-        if (turnInfo != null) {
-          _turnOrder = List<String>.from(turnInfo['turnOrder'] ?? []);
-          _currentTurnIndex = turnInfo['currentTurnIndex'] ?? 0;
-          _currentTurnUserId = turnInfo['currentTurnUserId'];
+        // Initialize turn order based on email sequence
+        if (_participantEmails.isNotEmpty && _turnOrder.isEmpty) {
+          _turnOrder =
+              _participantEmails.map((p) => p['id'] as String).toList();
+          _currentTurnIndex = 0;
+          _currentTurnUserId = _turnOrder[0];
           _isGameStarted = true;
-          print('\nLoaded turn information from database:');
-          print('Current turn index: $_currentTurnIndex');
-          print('Current turn user: $_currentTurnUserId');
-        }
 
-        print('\n========== PARTICIPANT EMAILS ==========');
-        print('Chat ID: ${widget.chatId}');
+          // Store initial turn information in realtime database for group chats
+          if (_isGroupChat && _currentTurnUserId != null) {
+            _chatService.updateGroupChatTurn(
+              groupChatId: widget.chatId,
+              currentTurnUserId: _currentTurnUserId!,
+              currentTurnIndex: _currentTurnIndex,
+              turnOrder: _turnOrder,
+            );
+          }
+
+          // Send system message about turn order
+          String turnOrderText = _participantEmails.map((p) {
+            if (p['id'] == _chatService.currentUserId) {
+              return 'You';
+            }
+            return p['email'];
+          }).join(' → ');
+
+          _chatService.sendMessage(
+            chatId: widget.chatId,
+            content: 'Game started! Turn order: $turnOrderText',
+            chatType: _isGroupChat ? 'group' : null,
+          );
+        }
 
         // Extract and validate participant emails
         if (participants is Map<String, dynamic>) {
@@ -96,10 +100,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       ? role.trim()
                       : 'member',
                 });
-
-                print('✓ Extracted Email: ${email.toLowerCase().trim()}');
-              } else {
-                print('⚠️ Skipped: Missing or invalid email for user $userId');
               }
             }
           });
@@ -114,55 +114,7 @@ class _ChatScreenState extends State<ChatScreen> {
             'name': chatData['name'] ?? 'Unknown',
             'role': 'member',
           });
-          print('✓ Extracted Email (Direct): ${chatData['email']}');
         }
-      }
-
-      // Print all extracted emails
-      print('\n✅ All Participant Emails Extracted:');
-      for (var p in _participantEmails) {
-        print('- ${p['email']}');
-      }
-      print('=======================================\n');
-
-      // Initialize turn order based on email sequence if not already loaded from database
-      if (_participantEmails.isNotEmpty && _turnOrder.isEmpty) {
-        _turnOrder = _participantEmails.map((p) => p['id'] as String).toList();
-        _currentTurnIndex = 0;
-        _currentTurnUserId = _turnOrder[0];
-        _isGameStarted = true;
-
-        // Store initial turn information in realtime database for group chats
-        if (_isGroupChat && _currentTurnUserId != null) {
-          _chatService.updateGroupChatTurn(
-            groupChatId: widget.chatId,
-            currentTurnUserId: _currentTurnUserId!,
-            currentTurnIndex: _currentTurnIndex,
-            turnOrder: _turnOrder,
-          );
-        }
-
-        // Print turn order
-        print('\n========== TURN ORDER ==========');
-        for (var i = 0; i < _participantEmails.length; i++) {
-          final participant = _participantEmails[i];
-          print('${i + 1}. ${participant['email']}');
-        }
-        print('===============================\n');
-
-        // Send system message about turn order
-        String turnOrderText = _participantEmails.map((p) {
-          if (p['id'] == _chatService.currentUserId) {
-            return 'You';
-          }
-          return p['email'];
-        }).join(' → ');
-
-        _chatService.sendMessage(
-          chatId: widget.chatId,
-          content: 'Game started! Turn order: $turnOrderText',
-          chatType: _isGroupChat ? 'group' : null,
-        );
       }
 
       if (mounted) {
@@ -178,8 +130,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     } catch (e) {
-      print('\nError loading chat info: $e');
-      print('Error details: ${e.toString()}');
+      // Handle error silently
     }
   }
 
@@ -225,13 +176,6 @@ class _ChatScreenState extends State<ChatScreen> {
       orElse: () =>
           {'name': 'Unknown', 'role': 'member', 'email': 'unknown@email.com'},
     );
-
-    // Print whose turn it is
-    print('\n========== TURN CHANGE ==========');
-    print('Current turn: ${currentPlayer['email']} (${currentPlayer['role']})');
-    print(
-        'Next turn: ${_participantEmails[(_currentTurnIndex + 1) % _participantEmails.length]['email']}');
-    print('================================\n');
 
     // Update turn information in realtime database for group chats
     if (_isGroupChat && _currentTurnUserId != null) {
@@ -279,17 +223,22 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
+    // Update game state in realtime database
+    _chatService.updateGameState(
+      chatId: widget.chatId,
+      number: number,
+      userId: _chatService.currentUserId!,
+    );
+
+    // Send message about the number selection
     _chatService.sendMessage(
       chatId: widget.chatId,
       content: number.toString(),
       chatType: _isGroupChat ? 'group' : null,
     );
 
-    setState(() {
-      _selectedNumbers.add(number);
-      _numberSelectors[number] = _chatService.currentUserId ?? 'Unknown';
-      _nextTurn();
-    });
+    // Move to next turn
+    _nextTurn();
     _scrollToBottom();
   }
 
@@ -450,49 +399,64 @@ class _ChatScreenState extends State<ChatScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            if (_currentTurnUserId != null)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                color: _isMyTurn ? Colors.green[100] : Colors.grey[200],
-                child: Center(
-                  child: Column(
-                    children: [
-                      Text(
-                        _isMyTurn
-                            ? 'Your turn!'
-                            : 'Waiting for other player...',
-                        style: TextStyle(
-                          color:
-                              _isMyTurn ? Colors.green[700] : Colors.grey[700],
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (!_isGameStarted)
-                        const Text(
-                          'Game will start when all players join',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      if (_isGameStarted && _participantEmails.isNotEmpty)
+            StreamBuilder<Map<String, dynamic>>(
+              stream: _chatService.getGroupChatTurn(widget.chatId),
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  final turnData = snapshot.data!;
+                  _currentTurnUserId = turnData['currentTurnUserId'];
+                  _currentTurnIndex = turnData['currentTurnIndex'] ?? 0;
+                  _turnOrder = List<String>.from(turnData['turnOrder'] ?? []);
+                  _isGameStarted = true;
+                }
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  color: _isMyTurn ? Colors.green[100] : Colors.grey[200],
+                  child: Center(
+                    child: Column(
+                      children: [
                         Text(
-                          'Current turn: ${_participantEmails.firstWhere(
-                            (p) => p['id'] == _currentTurnUserId,
-                            orElse: () => {'name': 'Unknown', 'role': 'member'},
-                          )['name']} (${_participantEmails.firstWhere(
-                            (p) => p['id'] == _currentTurnUserId,
-                            orElse: () => {'name': 'Unknown', 'role': 'member'},
-                          )['role']})',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
+                          _isMyTurn
+                              ? 'Your turn!'
+                              : 'Waiting for other player...',
+                          style: TextStyle(
+                            color: _isMyTurn
+                                ? Colors.green[700]
+                                : Colors.grey[700],
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                    ],
+                        if (!_isGameStarted)
+                          const Text(
+                            'Game will start when all players join',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        if (_isGameStarted && _participantEmails.isNotEmpty)
+                          Text(
+                            'Current turn: ${_participantEmails.firstWhere(
+                              (p) => p['id'] == _currentTurnUserId,
+                              orElse: () =>
+                                  {'name': 'Unknown', 'role': 'member'},
+                            )['name']} (${_participantEmails.firstWhere(
+                              (p) => p['id'] == _currentTurnUserId,
+                              orElse: () =>
+                                  {'name': 'Unknown', 'role': 'member'},
+                            )['role']})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
+            ),
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
                 stream: _chatService.getMessages(
@@ -514,30 +478,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     return const Center(
                       child: Text('No messages yet. Start the conversation!'),
                     );
-                  }
-
-                  // Update selected numbers and their selectors from messages
-                  _selectedNumbers = {};
-                  _numberSelectors = {};
-                  for (var message in messages) {
-                    if (message['text'] != null) {
-                      final number = int.tryParse(message['text'].toString());
-                      if (number != null && number >= 1 && number <= 10) {
-                        _selectedNumbers.add(number);
-                        _numberSelectors[number] =
-                            message['senderId'] ?? 'Unknown';
-                      }
-                    }
-                  }
-
-                  // Initialize turn order if not already done
-                  if (_turnOrder.isEmpty && _participantEmails.isNotEmpty) {
-                    _turnOrder = _participantEmails
-                        .map((p) => p['id'] as String)
-                        .toList();
-                    _currentTurnIndex = 0;
-                    _currentTurnUserId = _turnOrder[0];
-                    _isGameStarted = true;
                   }
 
                   return ListView.builder(
@@ -619,35 +559,107 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    _isMyTurn
-                        ? 'Select a number (1-10)'
-                        : 'Waiting for your turn...',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: _isMyTurn ? Colors.black : Colors.grey,
-                    ),
+                  StreamBuilder<Map<String, dynamic>>(
+                    stream: _chatService.getGroupChatTurn(widget.chatId),
+                    builder: (context, turnSnapshot) {
+                      if (turnSnapshot.hasData) {
+                        final turnData = turnSnapshot.data!;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            setState(() {
+                              _currentTurnUserId =
+                                  turnData['currentTurnUserId'];
+                              _currentTurnIndex =
+                                  turnData['currentTurnIndex'] ?? 0;
+                              _turnOrder = List<String>.from(
+                                  turnData['turnOrder'] ?? []);
+                              _isGameStarted = true;
+                            });
+                          }
+                        });
+                      }
+
+                      return Text(
+                        _isMyTurn
+                            ? 'Select a number (1-10)'
+                            : 'Waiting for your turn...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _isMyTurn ? Colors.black : Colors.grey,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
                     height: 160,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < 2; i++)
-                          Expanded(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                for (var j = 0; j < 5; j++)
-                                  Expanded(
-                                    child: _buildNumberButton(i * 5 + j + 1),
-                                  ),
-                              ],
-                            ),
-                          ),
-                      ],
+                    child: StreamBuilder<Map<String, dynamic>>(
+                      stream: _chatService.getGameState(widget.chatId),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          final gameState = snapshot.data!;
+                          try {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(() {
+                                  // Handle selectedNumbers as List
+                                  final selectedNumbersList =
+                                      gameState['selectedNumbers']
+                                              as List<dynamic>? ??
+                                          [];
+                                  _selectedNumbers = Set<int>.from(
+                                    selectedNumbersList
+                                        .map((n) => int.parse(n.toString())),
+                                  );
+
+                                  // Handle numberSelectors as Map
+                                  final numberSelectorsMap =
+                                      gameState['numberSelectors']
+                                              as Map<dynamic, dynamic>? ??
+                                          {};
+                                  _numberSelectors = Map<int, String>.from(
+                                    numberSelectorsMap.map(
+                                      (k, v) => MapEntry(
+                                          int.parse(k.toString()),
+                                          v.toString()),
+                                    ),
+                                  );
+                                });
+                              }
+                            });
+                          } catch (e) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(() {
+                                  _selectedNumbers = {};
+                                  _numberSelectors = {};
+                                });
+                              }
+                            });
+                          }
+                        }
+
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < 2; i++)
+                              SizedBox(
+                                height: 70,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    for (var j = 0; j < 5; j++)
+                                      Expanded(
+                                        child:
+                                            _buildNumberButton(i * 5 + j + 1),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -663,19 +675,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final isSelected = _selectedNumbers.contains(number);
     final selectorId = _numberSelectors[number];
     final isSelectedByCurrentUser = selectorId == _chatService.currentUserId;
+    final isCurrentUserTurn = _isMyTurn;
 
     return Container(
       margin: const EdgeInsets.all(4),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: (!_isMyTurn || isSelected) ? null : () => _sendNumber(number),
+          onTap: (!isCurrentUserTurn || isSelected)
+              ? null
+              : () => _sendNumber(number),
           borderRadius: BorderRadius.circular(8),
           child: Container(
             decoration: BoxDecoration(
               color: isSelected
                   ? (isSelectedByCurrentUser ? Colors.green : Colors.grey)
-                  : (_isMyTurn
+                  : (isCurrentUserTurn
                       ? Theme.of(context).primaryColor
                       : Colors.grey[300]),
               borderRadius: BorderRadius.circular(8),
