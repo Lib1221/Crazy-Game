@@ -1,6 +1,6 @@
+import 'package:crazygame/services/realtime/realtime_chat_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../services/realtime_chat_service.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({super.key});
