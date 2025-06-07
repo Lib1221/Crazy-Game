@@ -1,7 +1,8 @@
+import 'package:crazygame/services/realtime/realtime_chat_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-import '../services/realtime_chat_service.dart';
+
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
