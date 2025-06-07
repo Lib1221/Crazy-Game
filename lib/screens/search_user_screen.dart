@@ -1,5 +1,5 @@
+import 'package:crazygame/services/realtime/realtime_chat_service.dart';
 import 'package:flutter/material.dart';
-import '../services/realtime_chat_service.dart';
 import 'chat_screen.dart';
 import 'package:get/get.dart';
 
