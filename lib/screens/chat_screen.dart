@@ -1,5 +1,6 @@
+import 'package:crazygame/services/realtime/realtime_chat_service.dart';
 import 'package:flutter/material.dart';
-import '../services/realtime_chat_service.dart';
+import 'dart:async';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -20,6 +21,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final RealtimeChatService _chatService = RealtimeChatService();
   final ScrollController _scrollController = ScrollController();
+  late final GlobalKey _chatKey;
   Map<String, dynamic>? _participantInfo;
   Map<String, dynamic>? _groupInfo;
   bool _isGroupChat = false;
@@ -30,16 +32,28 @@ class _ChatScreenState extends State<ChatScreen> {
   int _currentTurnIndex = 0;
   bool _isGameStarted = false;
   List<Map<String, dynamic>> _participantEmails = [];
+  Timer? _gameTimer;
+  int _remainingSeconds = 0;
+  int? _selectedNumber;
 
   @override
   void initState() {
     super.initState();
+    _chatKey = _chatService.getChatKey(widget.chatId);
     _loadChatInfo();
     _markMessagesAsRead();
     // Reset game state when starting
     if (_isGroupChat) {
       _chatService.resetGameState(widget.chatId);
     }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _gameTimer?.cancel();
+    _chatService.disposeKeys(widget.chatId);
+    super.dispose();
   }
 
   Future<void> _loadChatInfo() async {
@@ -374,6 +388,117 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _startGameTimer() {
+    _remainingSeconds = 60; // 1 minute timer
+    _gameTimer?.cancel();
+    _gameTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_remainingSeconds > 0) {
+          _remainingSeconds--;
+        } else {
+          _gameTimer?.cancel();
+          _isGameStarted = false;
+        }
+      });
+    });
+  }
+
+  String _formatTime(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _showGameStartConfirmation() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Start Game'),
+        content: const Text('Are you ready to start the game?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not Ready'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ready'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      // Send ready status to other player
+      await _chatService.sendMessage(
+        chatId: widget.chatId,
+        content: 'I am ready to start the game!',
+      );
+    }
+  }
+
+  Future<void> _selectNumber() async {
+    final result = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Select a Number'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(
+            10,
+            (index) => ListTile(
+              title: Text('${index + 1}'),
+              onTap: () => Navigator.pop(context, index + 1),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedNumber = result;
+      });
+      // Send selected number to other player
+      await _chatService.sendMessage(
+        chatId: widget.chatId,
+        content: 'I have selected my number!',
+      );
+    }
+  }
+
+  void _startGame() {
+    setState(() {
+      _isGameStarted = true;
+      _selectedNumber = null;
+    });
+    _startGameTimer();
+  }
+
+  void _handleIncomingMessage(Map<String, dynamic> message) {
+    final content = message['content'] as String;
+
+    if (content.contains('ready to start the game')) {
+      // Show confirmation that other player is ready
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Other player is ready to start the game!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else if (content.contains('selected my number')) {
+      // Show confirmation that other player has selected their number
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Other player has selected their number!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final String displayName = _isGroupChat
@@ -381,6 +506,7 @@ class _ChatScreenState extends State<ChatScreen> {
         : (_participantInfo?['name'] as String? ?? widget.chatName);
 
     return Scaffold(
+      key: _chatKey,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,6 +520,20 @@ class _ChatScreenState extends State<ChatScreen> {
                   color: Colors.green,
                 ),
               ),
+            if (_isGameStarted) ...[
+              const SizedBox(height: 4),
+              Text(
+                _formatTime(_remainingSeconds),
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
+            if (_selectedNumber != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Selected Number: $_selectedNumber',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -474,25 +614,21 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: _chatService.getMessages(
-                  widget.chatId,
-                  chatType: _isGroupChat ? 'group' : null,
-                ),
+                stream: _chatService.getChatMessages(widget.chatId),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
                   }
 
-                  final messages = snapshot.data ?? [];
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                  if (messages.isEmpty) {
-                    return const Center(
-                      child: Text('No messages yet. Start the conversation!'),
-                    );
+                  final messages = snapshot.data!;
+                  for (var message in messages) {
+                    if (!message['isCurrentUser']) {
+                      _handleIncomingMessage(message);
+                    }
                   }
 
                   return ListView.builder(
@@ -502,13 +638,24 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, index) {
                       final message = messages[index];
                       final isCurrentUser = message['isCurrentUser'] ?? false;
-                      final isSystemMessage =
-                          message['text']?.toString().startsWith("It's") ??
-                              false;
-                      final isNumberSelection = message['text']
-                              ?.toString()
-                              .contains('selected number') ??
-                          false;
+                      final content = message['content']?.toString() ?? '';
+                      final isSystemMessage = content.startsWith("It's") ||
+                          content.contains('Game started');
+                      final isNumberSelection =
+                          content.contains('selected number');
+                      final isReadyMessage =
+                          content.contains('ready to start the game');
+
+                      // Get the selected number if it's a number selection message
+                      int? selectedNumber;
+                      if (isNumberSelection) {
+                        final numberMatch = RegExp(r'selected number (\d+)')
+                            .firstMatch(content);
+                        if (numberMatch != null) {
+                          selectedNumber =
+                              int.tryParse(numberMatch.group(1) ?? '');
+                        }
+                      }
 
                       return Align(
                         alignment: isCurrentUser
@@ -528,9 +675,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                 ? Colors.amber[100]
                                 : isNumberSelection
                                     ? Colors.green[100]
-                                    : isCurrentUser
+                                    : isReadyMessage
                                         ? Colors.blue[100]
-                                        : Colors.grey[200],
+                                        : isCurrentUser
+                                            ? Colors.blue[100]
+                                            : Colors.grey[200],
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -546,18 +695,49 @@ class _ChatScreenState extends State<ChatScreen> {
                                     color: Colors.grey,
                                   ),
                                 ),
-                              Text(
-                                message['text'] ?? '',
-                                style: TextStyle(
-                                  fontSize: isSystemMessage ? 14 : 24,
-                                  fontWeight: isSystemMessage
-                                      ? FontWeight.normal
-                                      : FontWeight.bold,
-                                  color: isSystemMessage
-                                      ? Colors.amber[900]
-                                      : Colors.black,
+                              if (isNumberSelection && selectedNumber != null)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      content,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.green),
+                                      ),
+                                      child: Text(
+                                        selectedNumber.toString(),
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                Text(
+                                  content,
+                                  style: TextStyle(
+                                    fontSize: isSystemMessage ? 14 : 16,
+                                    fontWeight: isSystemMessage
+                                        ? FontWeight.normal
+                                        : FontWeight.bold,
+                                    color: isSystemMessage
+                                        ? Colors.amber[900]
+                                        : Colors.black,
+                                  ),
                                 ),
-                              ),
                               Text(
                                 _formatTimestamp(message['timestamp']),
                                 style: const TextStyle(
@@ -674,6 +854,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
+            _buildGameControls(),
           ],
         ),
       ),
@@ -737,14 +918,24 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildGameControls() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        ElevatedButton(
+          onPressed: _isGameStarted ? null : _showGameStartConfirmation,
+          child: const Text('Ready'),
+        ),
+        ElevatedButton(
+          onPressed: _isGameStarted ? null : _startGame,
+          child: const Text('Start Game'),
+        ),
+      ],
+    );
+  }
+
   String _formatTimestamp(int timestamp) {
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
   }
 }
