@@ -95,6 +95,8 @@ class RealtimeChatService {
       _chatService.getChatInfo(chatId);
   Stream<List<Map<String, dynamic>>> getGroupChatsData() =>
       _chatService.getGroupChatsData();
+
+  // GlobalKey Management Methods
   GlobalKey getChatKey(String chatId) {
     if (!_globalChatKeys.containsKey(chatId)) {
       _globalChatKeys[chatId] = GlobalKey();
@@ -102,7 +104,7 @@ class RealtimeChatService {
     return _globalChatKeys[chatId]!;
   }
 
-  void disposeKeys(String chatId) {
+  void disposeChatKey(String chatId) {
     _globalChatKeys.remove(chatId);
   }
 
