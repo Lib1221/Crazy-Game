@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import '../services/realtime/database_service.dart';
+import 'package:playing_cards/playing_cards.dart';
 import '../services/realtime/realtime_chat_service.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -20,7 +20,6 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
-  final _databaseService = DatabaseService();
   final _chatService = RealtimeChatService();
   final _database = FirebaseDatabase.instance;
 
@@ -32,6 +31,31 @@ class _ChatScreenState extends State<ChatScreen> {
   List<String> turnOrder = [];
   String? currentTurnUid;
   int currentTurnIndex = 0;
+  String? winnerUid;
+
+  PlayingCard getCardFromNumber(int number) {
+    int suitIndex = (number - 1) ~/ 13;
+    int rankIndex = (number - 1) % 13;
+
+    final suits = [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs];
+    final values = [
+      CardValue.ace,
+      CardValue.two,
+      CardValue.three,
+      CardValue.four,
+      CardValue.five,
+      CardValue.six,
+      CardValue.seven,
+      CardValue.eight,
+      CardValue.nine,
+      CardValue.ten,
+      CardValue.jack,
+      CardValue.queen,
+      CardValue.king
+    ];
+
+    return PlayingCard(suits[suitIndex], values[rankIndex]);
+  }
 
   @override
   void initState() {
@@ -60,7 +84,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
 
-    // Listen for turn changes and print all turn data
+    // Listen for turn changes
     _database.ref('group_chats/${widget.chatId}/turn').onValue.listen((event) {
       if (event.snapshot.value != null) {
         final turnData = event.snapshot.value as Map<dynamic, dynamic>;
@@ -69,19 +93,8 @@ class _ChatScreenState extends State<ChatScreen> {
           currentTurnIndex = turnData['currentTurnIndex'] ?? 0;
           currentTurnUid =
               turnOrder.isNotEmpty ? turnOrder[currentTurnIndex] : null;
+          winnerUid = turnData['winnerUid']?.toString();
         });
-
-        print('\n=== Turn Data from Database ===');
-        print('Turn Order: $turnOrder');
-        print('Current Turn Index: $currentTurnIndex');
-        print('Current Turn UID: $currentTurnUid');
-        print('My UID: $currentUserId');
-        print('Is My Turn: ${currentUserId == currentTurnUid}');
-        print('===============================\n');
-      } else {
-        print('\n=== Turn Data from Database ===');
-        print('No turn data available');
-        print('===============================\n');
       }
     });
 
@@ -94,15 +107,6 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() {
           participants = Map<String, dynamic>.from(event.snapshot.value as Map);
         });
-        print('=== Participants Information ===');
-        print('Total Participants: ${participants.length}');
-        participants.forEach((uid, data) {
-          print('UID: $uid');
-          print('Email: ${data['email']}');
-          print('Name: ${data['name']}');
-          print('---');
-        });
-        print('============================');
       }
     });
   }
@@ -112,17 +116,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendNumberToChat(int number) async {
-    if (!isMyTurn) {
-      print(
-          'Not your turn! Current turn: $currentTurnUid, Your UID: $currentUserId');
-      return;
-    }
-
-    print('=== Sending Number ===');
-    print('Number: $number');
-    print('Current Turn: $currentTurnUid');
-    print('My UID: $currentUserId');
-    print('====================');
+    if (!isMyTurn) return;
 
     final gameRef = _database.ref('group_chats/${widget.chatId}/game');
     final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
@@ -152,18 +146,28 @@ class _ChatScreenState extends State<ChatScreen> {
       'assignedAt': ServerValue.timestamp,
     });
 
+    // Check if current user has won
+    if (currentUserNumbers.isEmpty) {
+      // Add winner message to chat
+      await chatRef.push().set({
+        'uid': currentUserId,
+        'email': currentUserEmail,
+        'text': '${participants[currentUserId]?['name']} is the winner! 🎉',
+        'timestamp': ServerValue.timestamp,
+        'type': 'winner',
+      });
+
+      // Update turn data with winner
+      await _database.ref('group_chats/${widget.chatId}/turn').update({
+        'winnerUid': currentUserId,
+        'lastUpdated': ServerValue.timestamp,
+      });
+      return;
+    }
+
     // Calculate next turn
     if (turnOrder.isEmpty) return;
     final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
-    final nextUid = turnOrder[nextTurnIndex];
-
-    print('\n=== Updating Turn ===');
-    print('Current Turn Index: $currentTurnIndex');
-    print('Next Turn Index: $nextTurnIndex');
-    print('Current Player: $currentTurnUid');
-    print('Next Player: $nextUid');
-    print('Turn Order: $turnOrder');
-    print('===================\n');
 
     // Update turn in database
     await _database.ref('group_chats/${widget.chatId}/turn').update({
@@ -283,8 +287,45 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildGameOver() {
+    if (winnerUid == null) return const SizedBox.shrink();
+
+    final winnerName = participants[winnerUid]?['name'] ?? 'Unknown';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Theme.of(context).primaryColor.withOpacity(0.1),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.emoji_events,
+            size: 48,
+            color: Colors.amber,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Game Over!',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$winnerName is the winner! 🎉',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNumberButtons() {
-    if (currentUserNumbers.isEmpty) {
+    if (currentUserNumbers.isEmpty || winnerUid != null) {
       return const SizedBox.shrink();
     }
 
@@ -315,28 +356,26 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 6,
+            childAspectRatio: 0.7,
             children: currentUserNumbers.map((number) {
-              return ElevatedButton(
-                onPressed:
+              return GestureDetector(
+                onTap:
                     isCurrentUserTurn ? () => _sendNumberToChat(number) : null,
-                style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  backgroundColor: isCurrentUserTurn
-                      ? Theme.of(context).primaryColor
-                      : Theme.of(context).primaryColor.withOpacity(0.3),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
+                child: Container(
+                  margin: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isCurrentUserTurn ? Colors.blue : Colors.grey,
+                      width: 2,
+                    ),
                   ),
-                ),
-                child: Text(
-                  number.toString(),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                  child: PlayingCardView(
+                    card: getCardFromNumber(number),
+                    showBack: false,
                   ),
                 ),
               );
@@ -359,7 +398,7 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: _buildSelectedNumbers(),
           ),
-          _buildNumberButtons(),
+          if (winnerUid != null) _buildGameOver() else _buildNumberButtons(),
         ],
       ),
     );

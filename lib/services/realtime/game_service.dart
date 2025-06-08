@@ -117,7 +117,6 @@ class GameService {
       // Start timer for next user
       await startTurnTimer(chatId, nextUserId);
     } catch (e) {
-      print('Error updating game state: $e');
       rethrow;
     }
   }
@@ -194,7 +193,6 @@ class GameService {
       // Clean up keys if game is being reset
       disposeKeys(chatId);
     } catch (e) {
-      print('Error resetting game state: $e');
       rethrow;
     }
   }
@@ -473,6 +471,8 @@ class GameService {
         'turnOrder': turnOrder,
         'lastUpdated': ServerValue.timestamp,
       });
-    } catch (e) {}
+    } catch (e) {
+      return;
+    }
   }
 }
