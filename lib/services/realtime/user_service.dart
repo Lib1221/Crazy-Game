@@ -123,7 +123,9 @@ class UserService {
               'lastLogin': data['lastLogin'],
             });
           }
-        } catch (e) {}
+        } catch (e) {
+          rethrow;
+        }
       }
 
       return users;
@@ -147,7 +149,7 @@ class UserService {
       }
 
       final List<Map<String, dynamic>> users = [];
-      snapshot.children.forEach((child) {
+      for (var child in snapshot.children) {
         try {
           final data = child.value as Map<dynamic, dynamic>;
           final userEmail = data['email']?.toString().toLowerCase() ?? '';
@@ -161,8 +163,10 @@ class UserService {
               'lastLogin': data['lastLogin'],
             });
           }
-        } catch (e) {}
-      });
+        } catch (e) {
+          rethrow;
+        }
+      }
 
       users.sort((a, b) => a['email'].compareTo(b['email']));
       return users.take(10).toList();
