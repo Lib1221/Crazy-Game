@@ -31,8 +31,6 @@ class NumberAssigner {
         'numbers': assignedNumbers,
         'assignedAt': ServerValue.timestamp,
       });
-
-      print('Assigned to $userId: $assignedNumbers');
     }
   }
 }
