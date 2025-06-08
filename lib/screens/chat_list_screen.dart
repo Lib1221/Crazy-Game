@@ -91,7 +91,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   Get.to(() => ChatScreen(
                         chatId: chat['chatId'],
                         chatName: chat['name'],
-                        chatType: 'group',
                       ));
                 },
               );
