@@ -1,16 +1,14 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'database_service.dart';
 import 'user_service.dart';
 import 'auth_service.dart';
+import '../../logic/assigner.dart';
 
 class ChatService {
   final DatabaseService _databaseService;
   final UserService _userService;
   final AuthService _authService;
-  final Map<String, GlobalKey> _chatKeys = {};
-  static final Map<String, GlobalKey> _globalChatKeys = {};
 
   ChatService(this._databaseService, this._userService, this._authService);
 
@@ -524,6 +522,10 @@ class ChatService {
       }
     });
 
+    // Assign numbers to participants
+    final numberAssigner = NumberAssigner(chatId: groupChatId);
+    await numberAssigner.assignNumbersToParticipants(turnOrder);
+
     // Also create a reference in the user's chats
     for (final participant in participants.entries) {
       final userId = participant.key;
@@ -824,45 +826,5 @@ class ChatService {
     } catch (e) {
       return Stream.value([]);
     }
-  }
-
-  // Get or create a chat key
-  GlobalKey getChatKey(String chatId) {
-    // First check if we have a key in the instance map
-    if (!_chatKeys.containsKey(chatId)) {
-      // If not, check if we have a key in the global map
-      if (!_globalChatKeys.containsKey(chatId)) {
-        // If no key exists anywhere, create a new one and store it in both maps
-        _globalChatKeys[chatId] = GlobalKey();
-      }
-      // Store the reference in the instance map
-      _chatKeys[chatId] = _globalChatKeys[chatId]!;
-    }
-    return _chatKeys[chatId]!;
-  }
-
-  // Dispose keys when chat is closed
-  void disposeKeys(String chatId) {
-    _chatKeys.remove(chatId);
-    // Only remove from global map if no other instances are using it
-    if (!_chatKeys.containsValue(_globalChatKeys[chatId])) {
-      _globalChatKeys.remove(chatId);
-    }
-  }
-
-  // Reset all keys
-  void resetAllKeys() {
-    _chatKeys.clear();
-    _globalChatKeys.clear();
-  }
-
-  // Add method to check if chat is active
-  bool isChatActive(String chatId) {
-    return _chatKeys.containsKey(chatId) || _globalChatKeys.containsKey(chatId);
-  }
-
-  // Add method to get all active chat keys
-  Map<String, GlobalKey> getActiveChatKeys() {
-    return Map.from(_globalChatKeys);
   }
 }
