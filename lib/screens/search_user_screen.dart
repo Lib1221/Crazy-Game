@@ -68,6 +68,7 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => ChatScreen(
+              key: ValueKey('chat-$chatId'),
               chatId: chatId,
               chatName: _searchResult!['name'],
             ),
