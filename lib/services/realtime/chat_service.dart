@@ -1,5 +1,4 @@
 import 'package:firebase_database/firebase_database.dart';
-import 'package:flutter/material.dart';
 import 'database_service.dart';
 import 'user_service.dart';
 import 'auth_service.dart';
@@ -212,7 +211,9 @@ class ChatService {
                   'timestamp': timestampMillis,
                   'isCurrentUser': senderId == user.uid,
                 });
-              } catch (e) {}
+              } catch (e) {
+                rethrow;
+              }
             }
           }
 
@@ -335,7 +336,9 @@ class ChatService {
                   otherUserData['email']?.toString().toLowerCase() ?? ''
                 ],
               });
-            } catch (e) {}
+            } catch (e) {
+              rethrow;
+            }
           }
 
           // Sort chats by last message time (newest first)
