@@ -208,32 +208,49 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    return ListView.builder(
-      itemCount: selectedNumbers.length,
-      itemBuilder: (context, index) {
-        final number = selectedNumbers[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Theme.of(context).primaryColor,
-              child: Text(
-                number.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+    // Get only the last 4 selected numbers
+    final lastFourNumbers = selectedNumbers.length > 4
+        ? selectedNumbers.sublist(selectedNumbers.length - 4)
+        : selectedNumbers;
+
+    final selectedCards =
+        lastFourNumbers.map((number) => getCardFromNumber(number)).toList();
+
+    return Center(
+      child: SizedBox(
+        height: 250, // Increased height
+        width: MediaQuery.of(context)
+            .size
+            .width, // Full width for better centering
+        child: Stack(
+          alignment: Alignment.center,
+          children: List.generate(selectedCards.length, (index) {
+            final card = selectedCards[index];
+            // Calculate center position and offset
+            final centerX = MediaQuery.of(context).size.width / 2;
+            final offset = (index - (selectedCards.length - 1) / 2) *
+                35.0; // Increased spacing
+            final angle = (index - (selectedCards.length - 1) / 2) *
+                0.04; // Slightly reduced angle
+
+            return Positioned(
+              left: centerX +
+                  offset -
+                  65, // Center position + offset - half card width
+              child: Transform.rotate(
+                angle: angle,
+                child: SizedBox(
+                  width: 130, // Slightly larger cards
+                  child: PlayingCardView(
+                    card: card,
+                    showBack: false,
+                  ),
                 ),
               ),
-            ),
-            title: Text(
-              'Number $number was selected',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        );
-      },
+            );
+          }),
+        ),
+      ),
     );
   }
 
