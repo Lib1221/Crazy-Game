@@ -106,4 +106,26 @@ class CardGameRuleChecker {
     final card = getCardFromNumber(number);
     return card.value == CardValue.two;
   }
+
+  /// Checks if a card is a 7
+  static bool isSeven(int number) {
+    final card = getCardFromNumber(number);
+    return card.value == CardValue.seven;
+  }
+
+  /// Checks if two cards have the same suit
+  static bool hasSameSuit(int number1, int number2) {
+    final card1 = getCardFromNumber(number1);
+    final card2 = getCardFromNumber(number2);
+    return card1.suit == card2.suit;
+  }
+
+  /// Gets all cards of the same suit from a list of numbers
+  static List<int> getCardsOfSameSuit(List<int> numbers, int referenceNumber) {
+    final referenceCard = getCardFromNumber(referenceNumber);
+    return numbers.where((number) {
+      final card = getCardFromNumber(number);
+      return card.suit == referenceCard.suit;
+    }).toList();
+  }
 }
