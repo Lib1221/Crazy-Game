@@ -33,6 +33,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? currentTurnUid;
   int currentTurnIndex = 0;
   String? winnerUid;
+  bool isProcessingMove = false;
 
   @override
   void initState() {
@@ -86,82 +87,203 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     });
+
+    // Listen for all players' numbers in real-time
+    gameRef.child('userNumbers').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final userNumbers = event.snapshot.value as Map<dynamic, dynamic>;
+        setState(() {
+          // Update each participant's numbers
+          for (var entry in userNumbers.entries) {
+            final uid = entry.key.toString();
+            final numbers = entry.value['numbers'] as List<dynamic>?;
+            if (participants.containsKey(uid)) {
+              participants[uid]['numbers'] = numbers ?? [];
+            }
+          }
+        });
+      }
+    });
   }
 
   bool get isMyTurn {
     return currentUserId == currentTurnUid;
   }
 
+  Future<Suit?> _showSuitSelectionDialog(int number) async {
+    final suits = [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs];
+    final suitNames = ['Spades ♠️', 'Hearts ♥️', 'Diamonds ♦️', 'Clubs ♣️'];
+    final originalCard = CardGameRuleChecker.getCardFromNumber(number);
+    final isJack = originalCard.value == CardValue.jack;
+
+    return showDialog<Suit>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(isJack
+              ? 'Jack can change to any suit!'
+              : '8 can change to any suit!'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(4, (index) {
+              final suit = suits[index];
+              final previewCard = PlayingCard(suit, originalCard.value);
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: SizedBox(
+                    width: 40,
+                    child: PlayingCardView(
+                      card: previewCard,
+                      showBack: false,
+                    ),
+                  ),
+                  title: Text(suitNames[index]),
+                  onTap: () {
+                    Navigator.of(context).pop(suit);
+                  },
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _sendNumberToChat(int number) async {
-    if (!isMyTurn) return;
+    if (!isMyTurn || isProcessingMove) return;
 
-    // Check if the move is allowed
-    final lastSelectedNumber =
-        selectedNumbers.isNotEmpty ? selectedNumbers.last : null;
-    if (!CardGameRuleChecker.isMoveAllowed(lastSelectedNumber, number)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Invalid move! Card must match suit or value of the previous card.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Remove the number from user's numbers immediately
     setState(() {
-      currentUserNumbers.remove(number);
+      isProcessingMove = true;
     });
 
-    final gameRef = _database.ref('group_chats/${widget.chatId}/game');
-    final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
+    try {
+      // Check if the move is allowed
+      final lastSelectedNumber =
+          selectedNumbers.isNotEmpty ? selectedNumbers.last : null;
+      if (!CardGameRuleChecker.isMoveAllowed(lastSelectedNumber, number)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Invalid move! Card must match suit or value of the previous card.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
-    // Add the number to selectedNumbers array
-    final newSelectedNumbers = List<int>.from(selectedNumbers)..add(number);
-    await gameRef.child('selectedNumbers').set(newSelectedNumbers);
+      // Remove the number from user's numbers immediately after validation
+      setState(() {
+        currentUserNumbers.remove(number);
+      });
 
-    // Add a message in the chat
-    await chatRef.push().set({
-      'uid': currentUserId,
-      'email': currentUserEmail,
-      'text': 'Selected number $number',
-      'timestamp': ServerValue.timestamp,
-      'type': 'number',
-      'number': number,
-    });
+      // If it's a wild card (8 or Jack), show suit selection dialog
+      if (CardGameRuleChecker.isWildCard(number)) {
+        final selectedSuit = await _showSuitSelectionDialog(number);
+        if (selectedSuit == null) {
+          // If user cancels suit selection, add the number back to their hand
+          setState(() {
+            currentUserNumbers.add(number);
+          });
+          return;
+        }
 
-    // Update the user's numbers in the database
-    await gameRef.child('userNumbers/$currentUserId').update({
-      'numbers': currentUserNumbers,
-      'assignedAt': ServerValue.timestamp,
-    });
+        // Create a new card with the selected suit
+        final originalCard = CardGameRuleChecker.getCardFromNumber(number);
+        final newCard = PlayingCard(selectedSuit, originalCard.value);
+        number = CardGameRuleChecker.getNumberFromCard(newCard);
+      }
 
-    // Check if current user has won
-    if (currentUserNumbers.isEmpty) {
-      // Add winner message to chat
+      final gameRef = _database.ref('group_chats/${widget.chatId}/game');
+      final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
+
+      // Add the number to selectedNumbers array
+      final newSelectedNumbers = List<int>.from(selectedNumbers)..add(number);
+      await gameRef.child('selectedNumbers').set(newSelectedNumbers);
+
+      // Add a message in the chat
+      final card = CardGameRuleChecker.getCardFromNumber(number);
+      final suitSymbol = {
+        Suit.spades: '♠️',
+        Suit.hearts: '♥️',
+        Suit.diamonds: '♦️',
+        Suit.clubs: '♣️',
+      }[card.suit]!;
+
+      final cardType = card.value == CardValue.eight
+          ? '8'
+          : card.value == CardValue.jack
+              ? 'Jack'
+              : card.value.toString().split('.').last;
+
       await chatRef.push().set({
         'uid': currentUserId,
         'email': currentUserEmail,
-        'text': '${participants[currentUserId]?['name']} is the winner! 🎉',
+        'text': 'Selected $cardType of $suitSymbol',
         'timestamp': ServerValue.timestamp,
-        'type': 'winner',
+        'type': 'number',
+        'number': number,
       });
 
-      // Update turn data with winner
-      await _database.ref('group_chats/${widget.chatId}/turn').update({
-        'winnerUid': currentUserId,
-        'lastUpdated': ServerValue.timestamp,
+      // Update the user's numbers in the database
+      await gameRef.child('userNumbers/$currentUserId').update({
+        'numbers': currentUserNumbers,
+        'assignedAt': ServerValue.timestamp,
       });
-      return;
-    }
 
-    // Always pass to next turn after a valid move
-    if (turnOrder.isNotEmpty) {
-      final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
-      await _database.ref('group_chats/${widget.chatId}/turn').update({
-        'currentTurnIndex': nextTurnIndex,
-        'lastUpdated': ServerValue.timestamp,
+      // Check if current user has won
+      if (currentUserNumbers.isEmpty) {
+        // Add winner message to chat
+        await chatRef.push().set({
+          'uid': currentUserId,
+          'email': currentUserEmail,
+          'text': '${participants[currentUserId]?['name']} is the winner! 🎉',
+          'timestamp': ServerValue.timestamp,
+          'type': 'winner',
+        });
+
+        // Update turn data with winner
+        await _database.ref('group_chats/${widget.chatId}/turn').update({
+          'winnerUid': currentUserId,
+          'lastUpdated': ServerValue.timestamp,
+        });
+        return;
+      }
+
+      // Check for special cards (Ace and 2)
+      if (CardGameRuleChecker.isAce(number)) {
+        await _addRandomCardsToNextPlayer(5);
+        await chatRef.push().set({
+          'uid': currentUserId,
+          'email': currentUserEmail,
+          'text': 'Ace played! Next player draws 5 cards!',
+          'timestamp': ServerValue.timestamp,
+          'type': 'system',
+        });
+      } else if (CardGameRuleChecker.isTwo(number)) {
+        await _addRandomCardsToNextPlayer(2);
+        await chatRef.push().set({
+          'uid': currentUserId,
+          'email': currentUserEmail,
+          'text': '2 played! Next player draws 2 cards!',
+          'timestamp': ServerValue.timestamp,
+          'type': 'system',
+        });
+      }
+
+      // Always pass to next turn after a valid move
+      if (turnOrder.isNotEmpty) {
+        final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+        await _database.ref('group_chats/${widget.chatId}/turn').update({
+          'currentTurnIndex': nextTurnIndex,
+          'lastUpdated': ServerValue.timestamp,
+        });
+      }
+    } finally {
+      setState(() {
+        isProcessingMove = false;
       });
     }
   }
@@ -188,6 +310,21 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _skipTurn() async {
     if (!isMyTurn) return;
 
+    // Add a random number between 1-52 to user's numbers
+    final random = (DateTime.now().millisecondsSinceEpoch % 52) + 1;
+
+    // Add to user's numbers
+    setState(() {
+      currentUserNumbers.add(random);
+    });
+
+    // Update user's numbers in database
+    final gameRef = _database.ref('group_chats/${widget.chatId}/game');
+    await gameRef.child('userNumbers/$currentUserId').update({
+      'numbers': currentUserNumbers,
+      'assignedAt': ServerValue.timestamp,
+    });
+
     // Calculate next turn
     if (turnOrder.isEmpty) return;
     final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
@@ -203,7 +340,8 @@ class _ChatScreenState extends State<ChatScreen> {
     await chatRef.push().set({
       'uid': currentUserId,
       'email': currentUserEmail,
-      'text': '${participants[currentUserId]?['name']} skipped their turn',
+      'text':
+          '${participants[currentUserId]?['name']} skipped their turn and drew card ${random}',
       'timestamp': ServerValue.timestamp,
       'type': 'system',
     });
@@ -395,7 +533,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   TextButton.icon(
-                    onPressed: _skipTurn,
+                    onPressed: isProcessingMove ? null : _skipTurn,
                     icon: const Icon(Icons.skip_next, size: 20),
                     label: const Text('Skip Turn'),
                     style: TextButton.styleFrom(
@@ -407,34 +545,168 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-          GridView.count(
-            shrinkWrap: true,
-            crossAxisCount: 6,
-            childAspectRatio: 0.7,
-            children: currentUserNumbers.map((number) {
-              return GestureDetector(
-                onTap:
-                    isCurrentUserTurn ? () => _sendNumberToChat(number) : null,
-                child: Container(
-                  margin: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isCurrentUserTurn ? Colors.blue : Colors.grey,
-                      width: 2,
+          SizedBox(
+            height: 180,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: currentUserNumbers.length,
+              itemBuilder: (context, index) {
+                final number = currentUserNumbers[index];
+                return Container(
+                  width: 100,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  child: GestureDetector(
+                    onTap: (isCurrentUserTurn && !isProcessingMove)
+                        ? () => _sendNumberToChat(number)
+                        : null,
+                    child: Opacity(
+                      opacity: isProcessingMove ? 0.5 : 1.0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color:
+                                isCurrentUserTurn ? Colors.blue : Colors.grey,
+                            width: 2,
+                          ),
+                        ),
+                        child: PlayingCardView(
+                          card: CardGameRuleChecker.getCardFromNumber(number),
+                          showBack: false,
+                        ),
+                      ),
                     ),
                   ),
-                  child: PlayingCardView(
-                    card: CardGameRuleChecker.getCardFromNumber(number),
-                    showBack: false,
-                  ),
-                ),
-              );
-            }).toList(),
+                );
+              },
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildPlayerCounts() {
+    return Container(
+      height: 80,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: participants.length,
+        itemBuilder: (context, index) {
+          final uid = participants.keys.elementAt(index);
+          final player = participants[uid];
+          final isCurrentPlayer = uid == currentTurnUid;
+          final cardCount = player['numbers']?.length ?? 0;
+          final isCurrentUser = uid == currentUserId;
+
+          return Container(
+            width: 60,
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 45,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isCurrentPlayer
+                            ? Theme.of(context).primaryColor
+                            : isCurrentUser
+                                ? Colors.blue.withOpacity(0.2)
+                                : Colors.grey[200],
+                        border: Border.all(
+                          color: isCurrentPlayer
+                              ? Theme.of(context).primaryColor
+                              : isCurrentUser
+                                  ? Colors.blue
+                                  : Colors.grey[400]!,
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          cardCount.toString(),
+                          style: TextStyle(
+                            color:
+                                isCurrentPlayer ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (isCurrentPlayer)
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  player['name'] ?? 'Unknown',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight:
+                        isCurrentUser ? FontWeight.bold : FontWeight.normal,
+                    color: isCurrentUser ? Colors.blue : Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _addRandomCardsToNextPlayer(int count) async {
+    if (turnOrder.isEmpty) return;
+
+    final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+    final nextPlayerUid = turnOrder[nextTurnIndex];
+
+    // Get current numbers of next player
+    final gameRef = _database.ref('group_chats/${widget.chatId}/game');
+    final nextPlayerNumbersRef =
+        gameRef.child('userNumbers/$nextPlayerUid/numbers');
+    final nextPlayerNumbersSnapshot = await nextPlayerNumbersRef.get();
+
+    List<dynamic> nextPlayerNumbers = [];
+    if (nextPlayerNumbersSnapshot.exists) {
+      nextPlayerNumbers =
+          List<dynamic>.from(nextPlayerNumbersSnapshot.value as List);
+    }
+
+    // Add random numbers
+    for (int i = 0; i < count; i++) {
+      final random = (DateTime.now().millisecondsSinceEpoch % 52) + 1;
+      nextPlayerNumbers.add(random);
+    }
+
+    // Update next player's numbers
+    await nextPlayerNumbersRef.set(nextPlayerNumbers);
   }
 
   @override
@@ -445,6 +717,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          _buildPlayerCounts(),
           _buildTurnIndicator(),
           Expanded(
             child: _buildSelectedNumbers(),
