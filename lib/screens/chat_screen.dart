@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:playing_cards/playing_cards.dart';
 import '../services/realtime/realtime_chat_service.dart';
+import '../services/game/card_game_rule.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -32,30 +33,6 @@ class _ChatScreenState extends State<ChatScreen> {
   String? currentTurnUid;
   int currentTurnIndex = 0;
   String? winnerUid;
-
-  PlayingCard getCardFromNumber(int number) {
-    int suitIndex = (number - 1) ~/ 13;
-    int rankIndex = (number - 1) % 13;
-
-    final suits = [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs];
-    final values = [
-      CardValue.ace,
-      CardValue.two,
-      CardValue.three,
-      CardValue.four,
-      CardValue.five,
-      CardValue.six,
-      CardValue.seven,
-      CardValue.eight,
-      CardValue.nine,
-      CardValue.ten,
-      CardValue.jack,
-      CardValue.queen,
-      CardValue.king
-    ];
-
-    return PlayingCard(suits[suitIndex], values[rankIndex]);
-  }
 
   @override
   void initState() {
@@ -118,6 +95,25 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendNumberToChat(int number) async {
     if (!isMyTurn) return;
 
+    // Check if the move is allowed
+    final lastSelectedNumber =
+        selectedNumbers.isNotEmpty ? selectedNumbers.last : null;
+    if (!CardGameRuleChecker.isMoveAllowed(lastSelectedNumber, number)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Invalid move! Card must match suit or value of the previous card.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Remove the number from user's numbers immediately
+    setState(() {
+      currentUserNumbers.remove(number);
+    });
+
     final gameRef = _database.ref('group_chats/${widget.chatId}/game');
     final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
 
@@ -133,11 +129,6 @@ class _ChatScreenState extends State<ChatScreen> {
       'timestamp': ServerValue.timestamp,
       'type': 'number',
       'number': number,
-    });
-
-    // Remove the number from user's numbers
-    setState(() {
-      currentUserNumbers.remove(number);
     });
 
     // Update the user's numbers in the database
@@ -165,15 +156,14 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Calculate next turn
-    if (turnOrder.isEmpty) return;
-    final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
-
-    // Update turn in database
-    await _database.ref('group_chats/${widget.chatId}/turn').update({
-      'currentTurnIndex': nextTurnIndex,
-      'lastUpdated': ServerValue.timestamp,
-    });
+    // Always pass to next turn after a valid move
+    if (turnOrder.isNotEmpty) {
+      final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+      await _database.ref('group_chats/${widget.chatId}/turn').update({
+        'currentTurnIndex': nextTurnIndex,
+        'lastUpdated': ServerValue.timestamp,
+      });
+    }
   }
 
   Future<void> _loadUserNumbers() async {
@@ -195,6 +185,30 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _skipTurn() async {
+    if (!isMyTurn) return;
+
+    // Calculate next turn
+    if (turnOrder.isEmpty) return;
+    final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+
+    // Update turn in database
+    await _database.ref('group_chats/${widget.chatId}/turn').update({
+      'currentTurnIndex': nextTurnIndex,
+      'lastUpdated': ServerValue.timestamp,
+    });
+
+    // Add a message in the chat
+    final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
+    await chatRef.push().set({
+      'uid': currentUserId,
+      'email': currentUserEmail,
+      'text': '${participants[currentUserId]?['name']} skipped their turn',
+      'timestamp': ServerValue.timestamp,
+      'type': 'system',
+    });
+  }
+
   Widget _buildSelectedNumbers() {
     if (selectedNumbers.isEmpty) {
       return const Center(
@@ -213,8 +227,9 @@ class _ChatScreenState extends State<ChatScreen> {
         ? selectedNumbers.sublist(selectedNumbers.length - 4)
         : selectedNumbers;
 
-    final selectedCards =
-        lastFourNumbers.map((number) => getCardFromNumber(number)).toList();
+    final selectedCards = lastFourNumbers
+        .map((number) => CardGameRuleChecker.getCardFromNumber(number))
+        .toList();
 
     return Center(
       child: SizedBox(
@@ -373,6 +388,25 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
+          if (isCurrentUserTurn)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton.icon(
+                    onPressed: _skipTurn,
+                    icon: const Icon(Icons.skip_next, size: 20),
+                    label: const Text('Skip Turn'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey[700],
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           GridView.count(
             shrinkWrap: true,
             crossAxisCount: 6,
@@ -391,7 +425,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   child: PlayingCardView(
-                    card: getCardFromNumber(number),
+                    card: CardGameRuleChecker.getCardFromNumber(number),
                     showBack: false,
                   ),
                 ),
