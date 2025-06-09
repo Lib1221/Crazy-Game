@@ -34,6 +34,8 @@ class _ChatScreenState extends State<ChatScreen> {
   int currentTurnIndex = 0;
   String? winnerUid;
   bool isProcessingMove = false;
+  bool isMultiSelectMode = false;
+  List<int> selectedCardsForMultiSelect = [];
 
   @override
   void initState() {
@@ -155,12 +157,119 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendNumberToChat(int number) async {
     if (!isMyTurn || isProcessingMove) return;
 
+    // Check if we're in multi-select mode
+    if (isMultiSelectMode) {
+      if (selectedCardsForMultiSelect.isEmpty) {
+        // First card selection in multi-select mode
+        setState(() {
+          selectedCardsForMultiSelect.add(number);
+        });
+        return;
+      } else {
+        // Check if the new card has the same suit as the first selected card
+        if (CardGameRuleChecker.hasSameSuit(
+            selectedCardsForMultiSelect[0], number)) {
+          setState(() {
+            selectedCardsForMultiSelect.add(number);
+          });
+          return;
+        } else {
+          // Different suit, cancel multi-select
+          setState(() {
+            isMultiSelectMode = false;
+            selectedCardsForMultiSelect.clear();
+          });
+        }
+      }
+    }
+
+    // Check if this is a 7 card
+    if (CardGameRuleChecker.isSeven(number)) {
+      setState(() {
+        isMultiSelectMode = true;
+        selectedCardsForMultiSelect = [number];
+      });
+      return;
+    }
+
     setState(() {
       isProcessingMove = true;
     });
 
     try {
-      // Check if the move is allowed
+      // If we have multiple cards selected, play them all
+      if (selectedCardsForMultiSelect.isNotEmpty) {
+        final cardsToPlay = List<int>.from(selectedCardsForMultiSelect);
+        selectedCardsForMultiSelect.clear();
+        isMultiSelectMode = false;
+
+        // Remove all selected cards from user's hand
+        setState(() {
+          for (var card in cardsToPlay) {
+            currentUserNumbers.remove(card);
+          }
+        });
+
+        final gameRef = _database.ref('group_chats/${widget.chatId}/game');
+        final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
+
+        // Add only the 7 to selectedNumbers array
+        await gameRef.child('selectedNumbers').set([cardsToPlay[0]]);
+
+        // Add a message in the chat
+        final card = CardGameRuleChecker.getCardFromNumber(cardsToPlay[0]);
+        final suitSymbol = {
+          Suit.spades: '♠️',
+          Suit.hearts: '♥️',
+          Suit.diamonds: '♦️',
+          Suit.clubs: '♣️',
+        }[card.suit]!;
+
+        await chatRef.push().set({
+          'uid': currentUserId,
+          'email': currentUserEmail,
+          'text':
+              'Played 7 of $suitSymbol and ${cardsToPlay.length - 1} more cards of the same suit!',
+          'timestamp': ServerValue.timestamp,
+          'type': 'number',
+          'number': cardsToPlay[0],
+        });
+
+        // Update the user's numbers in the database
+        await gameRef.child('userNumbers/$currentUserId').update({
+          'numbers': currentUserNumbers,
+          'assignedAt': ServerValue.timestamp,
+        });
+
+        // Check if current user has won
+        if (currentUserNumbers.isEmpty) {
+          await chatRef.push().set({
+            'uid': currentUserId,
+            'email': currentUserEmail,
+            'text': '${participants[currentUserId]?['name']} is the winner! 🎉',
+            'timestamp': ServerValue.timestamp,
+            'type': 'winner',
+          });
+
+          await _database.ref('group_chats/${widget.chatId}/turn').update({
+            'winnerUid': currentUserId,
+            'lastUpdated': ServerValue.timestamp,
+          });
+          return;
+        }
+
+        // Pass to next turn
+        if (turnOrder.isNotEmpty) {
+          final nextTurnIndex = (currentTurnIndex + 1) % turnOrder.length;
+          await _database.ref('group_chats/${widget.chatId}/turn').update({
+            'currentTurnIndex': nextTurnIndex,
+            'lastUpdated': ServerValue.timestamp,
+          });
+        }
+        return;
+      }
+
+      // Regular single card play logic
       final lastSelectedNumber =
           selectedNumbers.isNotEmpty ? selectedNumbers.last : null;
       if (!CardGameRuleChecker.isMoveAllowed(lastSelectedNumber, number)) {
@@ -365,35 +474,36 @@ class _ChatScreenState extends State<ChatScreen> {
         ? selectedNumbers.sublist(selectedNumbers.length - 4)
         : selectedNumbers;
 
-    final selectedCards = lastFourNumbers
+    // If the last card is a 7, make sure it's at the top
+    final displayNumbers = List<int>.from(lastFourNumbers);
+    if (displayNumbers.isNotEmpty &&
+        CardGameRuleChecker.isSeven(displayNumbers.last)) {
+      final seven = displayNumbers.removeLast();
+      displayNumbers.insert(0, seven);
+    }
+
+    final selectedCards = displayNumbers
         .map((number) => CardGameRuleChecker.getCardFromNumber(number))
         .toList();
 
     return Center(
       child: SizedBox(
-        height: 250, // Increased height
-        width: MediaQuery.of(context)
-            .size
-            .width, // Full width for better centering
+        height: 250,
+        width: MediaQuery.of(context).size.width,
         child: Stack(
           alignment: Alignment.center,
           children: List.generate(selectedCards.length, (index) {
             final card = selectedCards[index];
-            // Calculate center position and offset
             final centerX = MediaQuery.of(context).size.width / 2;
-            final offset = (index - (selectedCards.length - 1) / 2) *
-                35.0; // Increased spacing
-            final angle = (index - (selectedCards.length - 1) / 2) *
-                0.04; // Slightly reduced angle
+            final offset = (index - (selectedCards.length - 1) / 2) * 35.0;
+            final angle = (index - (selectedCards.length - 1) / 2) * 0.04;
 
             return Positioned(
-              left: centerX +
-                  offset -
-                  65, // Center position + offset - half card width
+              left: centerX + offset - 65,
               child: Transform.rotate(
                 angle: angle,
                 child: SizedBox(
-                  width: 130, // Slightly larger cards
+                  width: 130,
                   child: PlayingCardView(
                     card: card,
                     showBack: false,
@@ -532,16 +642,147 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  TextButton.icon(
-                    onPressed: isProcessingMove ? null : _skipTurn,
-                    icon: const Icon(Icons.skip_next, size: 20),
-                    label: const Text('Skip Turn'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.grey[700],
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                  if (isMultiSelectMode)
+                    Row(
+                      children: [
+                        Text(
+                          'Select cards of the same suit',
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (selectedCardsForMultiSelect.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: ElevatedButton.icon(
+                              onPressed: isProcessingMove
+                                  ? null
+                                  : () async {
+                                      final cardsToPlay = List<int>.from(
+                                          selectedCardsForMultiSelect);
+                                      setState(() {
+                                        isProcessingMove = true;
+                                        selectedCardsForMultiSelect.clear();
+                                        isMultiSelectMode = false;
+                                      });
+
+                                      try {
+                                        // Remove all selected cards from user's hand
+                                        setState(() {
+                                          for (var card in cardsToPlay) {
+                                            currentUserNumbers.remove(card);
+                                          }
+                                        });
+
+                                        final gameRef = _database.ref(
+                                            'group_chats/${widget.chatId}/game');
+                                        final chatRef = _database.ref(
+                                            'group_chats/${widget.chatId}/messages');
+
+                                        // Add only the 7 to selectedNumbers array
+                                        await gameRef
+                                            .child('selectedNumbers')
+                                            .set([cardsToPlay[0]]);
+
+                                        // Add a message in the chat
+                                        final card = CardGameRuleChecker
+                                            .getCardFromNumber(cardsToPlay[0]);
+                                        final suitSymbol = {
+                                          Suit.spades: '♠️',
+                                          Suit.hearts: '♥️',
+                                          Suit.diamonds: '♦️',
+                                          Suit.clubs: '♣️',
+                                        }[card.suit]!;
+
+                                        final messageText = cardsToPlay.length >
+                                                1
+                                            ? 'Played 7 of $suitSymbol and ${cardsToPlay.length - 1} more cards of the same suit!'
+                                            : 'Played 7 of $suitSymbol';
+
+                                        await chatRef.push().set({
+                                          'uid': currentUserId,
+                                          'email': currentUserEmail,
+                                          'text': messageText,
+                                          'timestamp': ServerValue.timestamp,
+                                          'type': 'number',
+                                          'number': cardsToPlay[0],
+                                        });
+
+                                        // Update the user's numbers in the database
+                                        await gameRef
+                                            .child('userNumbers/$currentUserId')
+                                            .update({
+                                          'numbers': currentUserNumbers,
+                                          'assignedAt': ServerValue.timestamp,
+                                        });
+
+                                        // Check if current user has won
+                                        if (currentUserNumbers.isEmpty) {
+                                          await chatRef.push().set({
+                                            'uid': currentUserId,
+                                            'email': currentUserEmail,
+                                            'text':
+                                                '${participants[currentUserId]?['name']} is the winner! 🎉',
+                                            'timestamp': ServerValue.timestamp,
+                                            'type': 'winner',
+                                          });
+
+                                          await _database
+                                              .ref(
+                                                  'group_chats/${widget.chatId}/turn')
+                                              .update({
+                                            'winnerUid': currentUserId,
+                                            'lastUpdated':
+                                                ServerValue.timestamp,
+                                          });
+                                          return;
+                                        }
+
+                                        // Pass to next turn
+                                        if (turnOrder.isNotEmpty) {
+                                          final nextTurnIndex =
+                                              (currentTurnIndex + 1) %
+                                                  turnOrder.length;
+                                          await _database
+                                              .ref(
+                                                  'group_chats/${widget.chatId}/turn')
+                                              .update({
+                                            'currentTurnIndex': nextTurnIndex,
+                                            'lastUpdated':
+                                                ServerValue.timestamp,
+                                          });
+                                        }
+                                      } finally {
+                                        setState(() {
+                                          isProcessingMove = false;
+                                        });
+                                      }
+                                    },
+                              icon: const Icon(Icons.play_arrow, size: 20),
+                              label: Text(
+                                  'Play ${selectedCardsForMultiSelect.length} Card${selectedCardsForMultiSelect.length > 1 ? 's' : ''}'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                              ),
+                            ),
+                          ),
+                      ],
+                    )
+                  else
+                    TextButton.icon(
+                      onPressed: isProcessingMove ? null : _skipTurn,
+                      icon: const Icon(Icons.skip_next, size: 20),
+                      label: const Text('Skip Turn'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.grey[700],
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -552,6 +793,12 @@ class _ChatScreenState extends State<ChatScreen> {
               itemCount: currentUserNumbers.length,
               itemBuilder: (context, index) {
                 final number = currentUserNumbers[index];
+                final isSelected = selectedCardsForMultiSelect.contains(number);
+                final canSelect = isMultiSelectMode &&
+                    (selectedCardsForMultiSelect.isEmpty ||
+                        CardGameRuleChecker.hasSameSuit(
+                            selectedCardsForMultiSelect[0], number));
+
                 return Container(
                   width: 100,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -565,14 +812,43 @@ class _ChatScreenState extends State<ChatScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color:
-                                isCurrentUserTurn ? Colors.blue : Colors.grey,
-                            width: 2,
+                            color: isSelected
+                                ? Colors.green
+                                : isMultiSelectMode && !canSelect
+                                    ? Colors.grey
+                                    : isCurrentUserTurn
+                                        ? Colors.blue
+                                        : Colors.grey,
+                            width: isSelected ? 3 : 2,
                           ),
                         ),
-                        child: PlayingCardView(
-                          card: CardGameRuleChecker.getCardFromNumber(number),
-                          showBack: false,
+                        child: Stack(
+                          children: [
+                            PlayingCardView(
+                              card:
+                                  CardGameRuleChecker.getCardFromNumber(number),
+                              showBack: false,
+                            ),
+                            if (isSelected)
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 1),
+                                  ),
+                                  child: const Icon(
+                                    Icons.check,
+                                    size: 12,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
