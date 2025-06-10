@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
+import '../theme.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -10,18 +11,14 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  late final AuthController _authController;
-  late final GlobalKey<FormState> _formKey;
+  final _authController = Get.find<AuthController>();
   late final TextEditingController _emailController;
   late final TextEditingController _passwordController;
   late final TextEditingController _nameController;
-  bool _isLogin = true;
 
   @override
   void initState() {
     super.initState();
-    _authController = Get.put(AuthController());
-    _formKey = GlobalKey<FormState>();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
     _nameController = TextEditingController();
@@ -35,134 +32,188 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void _submitForm() async {
-    if (_formKey.currentState!.validate()) {
-      try {
-        if (_isLogin) {
-          await _authController.signIn(
-            _emailController.text.trim(),
-            _passwordController.text,
-          );
-        } else {
-          await _authController.signUp(
-            _emailController.text.trim(),
-            _passwordController.text,
-            _nameController.text.trim(),
-          );
-        }
-      } catch (e) {
-        Get.snackbar(
-          'Error',
-          e.toString(),
-          snackPosition: SnackPosition.BOTTOM,
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isLogin ? 'Login' : 'Sign Up'),
-      ),
-      body: Obx(() {
-        if (_authController.isLoading.value) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Please wait...'),
-              ],
-            ),
-          );
-        }
+      body: Stack(
+        children: [
+          // Background with arc
+          CustomPaint(
+            size: Size(MediaQuery.of(context).size.width, 300),
+            painter: ArcPainter(),
+          ),
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!_isLogin)
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Name',
-                      prefixIcon: Icon(Icons.person),
+          // Content
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppTheme.spacingL),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 100),
+                  Text(
+                    'Welcome!',
+                    style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingS),
+                  Text(
+                    'Sign in or create an account',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingXXL),
+
+                  // Auth Form
+                  Container(
+                    padding: const EdgeInsets.all(AppTheme.spacingL),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.borderRadiusLarge),
+                      boxShadow: AppTheme.defaultShadow,
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your name';
-                      }
-                      return null;
-                    },
-                    textInputAction: TextInputAction.next,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Full Name',
+                            prefixIcon: Icon(Icons.person_outline),
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spacingM),
+                        TextField(
+                          controller: _emailController,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.email_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spacingM),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                            prefixIcon: Icon(Icons.lock_outline),
+                          ),
+                        ),
+                        const SizedBox(height: AppTheme.spacingL),
+                        Obx(() => ElevatedButton(
+                              onPressed: _authController.isLoading.value
+                                  ? null
+                                  : () async {
+                                      final success =
+                                          await _authController.login(
+                                        _emailController.text,
+                                        _passwordController.text,
+                                      );
+                                      if (success) {
+                                        Get.offAllNamed('/chats');
+                                      }
+                                    },
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.all(AppTheme.spacingM),
+                                child: _authController.isLoading.value
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  Colors.white),
+                                        ),
+                                      )
+                                    : const Text('Sign In'),
+                              ),
+                            )),
+                        const SizedBox(height: AppTheme.spacingM),
+                        Obx(() => ElevatedButton(
+                              onPressed: _authController.isLoading.value
+                                  ? null
+                                  : () async {
+                                      if (_nameController.text.isEmpty) {
+                                        Get.snackbar(
+                                          'Error',
+                                          'Please enter your name',
+                                          snackPosition: SnackPosition.BOTTOM,
+                                        );
+                                        return;
+                                      }
+                                      final success =
+                                          await _authController.signup(
+                                        _nameController.text,
+                                        _emailController.text,
+                                        _passwordController.text,
+                                      );
+                                      if (success) {
+                                        Get.offAllNamed('/chats');
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.accentColor,
+                              ),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.all(AppTheme.spacingM),
+                                child: _authController.isLoading.value
+                                    ? const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  Colors.white),
+                                        ),
+                                      )
+                                    : const Text('Sign Up'),
+                              ),
+                            )),
+                      ],
+                    ),
                   ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!GetUtils.isEmail(value)) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _submitForm(),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _submitForm,
-                  child: Text(_isLogin ? 'Login' : 'Sign Up'),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _isLogin = !_isLogin;
-                    });
-                  },
-                  child: Text(_isLogin
-                      ? 'Don\'t have an account? Sign Up'
-                      : 'Already have an account? Login'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        );
-      }),
+        ],
+      ),
     );
   }
+}
+
+class ArcPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = AppTheme.primaryGradient.createShader(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+      )
+      ..style = PaintingStyle.fill;
+
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(0, size.height * 0.8)
+      ..quadraticBezierTo(
+        size.width * 0.5,
+        size.height * 1.2,
+        size.width,
+        size.height * 0.8,
+      )
+      ..lineTo(size.width, 0)
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
