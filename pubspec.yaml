@@ -42,6 +42,7 @@ dependencies:
   cupertino_icons: ^1.0.2
   intl: ^0.20.2
   playing_cards: ^0.4.1+11
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

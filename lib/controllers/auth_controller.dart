@@ -1,232 +1,123 @@
 import 'package:crazygame/services/realtime/realtime_chat_service.dart';
+import 'package:crazygame/services/error_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final RealtimeChatService _chatService = RealtimeChatService();
+  final ErrorService _errorService = Get.find<ErrorService>();
 
-  final Rx<User?> _user = Rx<User?>(null);
-  User? get user => _user.value;
-
-  final Rx<Map<String, dynamic>?> userData = Rx<Map<String, dynamic>?>(null);
   final RxBool isLoading = false.obs;
-  final RxString errorMessage = ''.obs;
+  final RxBool isAuthenticated = false.obs;
+  final Rx<User?> currentUser = Rx<User?>(null);
 
   @override
   void onInit() {
     super.onInit();
-    _user.bindStream(_chatService.authStateChanges);
-    ever(_user, _handleAuthChanged);
+    // Listen to auth state changes
+    _auth.authStateChanges().listen((User? user) {
+      currentUser.value = user;
+      isAuthenticated.value = user != null;
+    });
   }
 
   @override
   void onClose() {
-    _user.close();
+    currentUser.close();
     super.onClose();
   }
 
-  void _handleAuthChanged(User? user) {
-    if (user != null) {
-      _loadUserData(user.uid);
-      Get.offAllNamed('/chats');
-    } else {
-      Get.offAllNamed('/auth');
-    }
-  }
-
-  Future<void> _loadUserData(String uid) async {
-    try {
-      final doc = await _firestore.collection('users').doc(uid).get();
-      if (doc.exists) {
-        userData.value = doc.data();
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to load user data',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    }
-  }
-
-  Future<void> signIn(String email, String password) async {
+  Future<bool> login(String email, String password) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
-      await _chatService.signIn(email, password);
+      await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return true;
     } on FirebaseAuthException catch (e) {
-      _handleAuthError(e);
-    } catch (e) {
-      errorMessage.value = 'An unexpected error occurred. Please try again.';
+      String message = 'An error occurred';
+      if (e.code == 'user-not-found') {
+        message = 'No user found with this email';
+      } else if (e.code == 'wrong-password') {
+        message = 'Wrong password provided';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address';
+      }
       Get.snackbar(
         'Error',
-        errorMessage.value,
+        message,
         snackPosition: SnackPosition.BOTTOM,
       );
+      return false;
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<void> signUp(String email, String password, String name) async {
+  Future<bool> signup(String name, String email, String password) async {
     try {
       isLoading.value = true;
-      errorMessage.value = '';
+      // Create user with email and password
+      final UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      // Check network connectivity first
-      try {
-        await _auth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-      } on FirebaseAuthException catch (e) {
-        if (e.code == 'network-request-failed') {
-          throw Exception(
-              'Please check your internet connection and try again.');
-        }
-        rethrow;
-      }
+      // Create user profile in Firestore
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'name': name,
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-      // If signup successful, update profile and store user data
-      final user = _auth.currentUser;
-      if (user != null) {
-        await user.updateDisplayName(name);
-        await _chatService.storeUserInfo(
-          userId: user.uid,
-          name: name,
-          email: email,
-        );
-      }
+      return true;
     } on FirebaseAuthException catch (e) {
-      _handleAuthError(e);
-    } catch (e) {
-      errorMessage.value = e.toString();
+      String message = 'An error occurred';
+      if (e.code == 'weak-password') {
+        message = 'The password provided is too weak';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'An account already exists for that email';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address';
+      }
       Get.snackbar(
         'Error',
-        errorMessage.value,
+        message,
         snackPosition: SnackPosition.BOTTOM,
       );
+      return false;
     } finally {
       isLoading.value = false;
     }
   }
 
-  void _handleAuthError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        errorMessage.value = 'No user found with this email.';
-        break;
-      case 'wrong-password':
-        errorMessage.value = 'Wrong password provided.';
-        break;
-      case 'email-already-in-use':
-        errorMessage.value = 'An account already exists with this email.';
-        break;
-      case 'invalid-email':
-        errorMessage.value = 'Please enter a valid email address.';
-        break;
-      case 'weak-password':
-        errorMessage.value =
-            'Password is too weak. Please use a stronger password.';
-        break;
-      case 'network-request-failed':
-        errorMessage.value =
-            'Please check your internet connection and try again.';
-        break;
-      default:
-        errorMessage.value = 'An error occurred. Please try again.';
-    }
-    Get.snackbar(
-      'Error',
-      errorMessage.value,
-      snackPosition: SnackPosition.BOTTOM,
-    );
-  }
-
-  Future<void> signOut() async {
+  Future<void> logout() async {
     try {
-      await _chatService.logout();
+      await _auth.signOut();
+      Get.offAllNamed('/login');
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to sign out',
+        'Failed to logout',
         snackPosition: SnackPosition.BOTTOM,
       );
     }
   }
 
-  Future<void> updateUserProfile({
-    String? name,
-    String? status,
-    String? photoUrl,
-    String? phoneNumber,
-    String? bio,
-  }) async {
+  Future<void> resetPassword(String email) async {
     try {
-      if (user != null) {
-        final updates = <String, dynamic>{
-          'updatedAt': FieldValue.serverTimestamp(),
-        };
-
-        if (name != null) {
-          updates['name'] = name;
-          await user!.updateDisplayName(name);
-        }
-        if (status != null) updates['status'] = status;
-        if (photoUrl != null) updates['photoUrl'] = photoUrl;
-        if (phoneNumber != null) updates['phoneNumber'] = phoneNumber;
-        if (bio != null) updates['bio'] = bio;
-
-        await _firestore.collection('users').doc(user!.uid).update(updates);
-        await _loadUserData(user!.uid);
-      }
+      isLoading.value = true;
+      await _auth.sendPasswordResetEmail(email: email);
+      _errorService.showSuccess('Password reset email sent');
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      rethrow;
+      _errorService.handleError(e);
+    } finally {
+      isLoading.value = false;
     }
   }
-
-  Future<void> updateUserSettings({
-    bool? notifications,
-    bool? darkMode,
-    String? language,
-  }) async {
-    try {
-      if (user != null) {
-        final updates = <String, dynamic>{
-          'updatedAt': FieldValue.serverTimestamp(),
-        };
-
-        if (notifications != null) {
-          updates['settings.notifications'] = notifications;
-        }
-        if (darkMode != null) {
-          updates['settings.darkMode'] = darkMode;
-        }
-        if (language != null) {
-          updates['settings.language'] = language;
-        }
-
-        await _firestore.collection('users').doc(user!.uid).update(updates);
-        await _loadUserData(user!.uid);
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      rethrow;
-    }
-  }
-
-  bool get isAuthenticated => user != null;
 }
