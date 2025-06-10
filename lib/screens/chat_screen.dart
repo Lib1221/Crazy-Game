@@ -154,6 +154,66 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  String _getCardDisplayText(PlayingCard card) {
+    final suitSymbol = {
+      Suit.spades: '♠️',
+      Suit.hearts: '♥️',
+      Suit.diamonds: '♦️',
+      Suit.clubs: '♣️',
+    }[card.suit]!;
+
+    String valueText;
+    switch (card.value) {
+      case CardValue.ace:
+        valueText = 'A';
+        break;
+      case CardValue.two:
+        valueText = '2';
+        break;
+      case CardValue.three:
+        valueText = '3';
+        break;
+      case CardValue.four:
+        valueText = '4';
+        break;
+      case CardValue.five:
+        valueText = '5';
+        break;
+      case CardValue.six:
+        valueText = '6';
+        break;
+      case CardValue.seven:
+        valueText = '7';
+        break;
+      case CardValue.eight:
+        valueText = '8';
+        break;
+      case CardValue.nine:
+        valueText = '9';
+        break;
+      case CardValue.ten:
+        valueText = '10';
+        break;
+      case CardValue.jack:
+        valueText = 'J';
+        break;
+      case CardValue.queen:
+        valueText = 'Q';
+        break;
+      case CardValue.king:
+        valueText = 'K';
+        break;
+      case CardValue.joker_1:
+        valueText = 'Joker';
+        break;
+      case CardValue.joker_2:
+        valueText = 'Joker';
+        break;
+    }
+
+    return '$valueText$suitSymbol';
+  }
+
   Future<void> _sendNumberToChat(int number) async {
     if (!isMyTurn || isProcessingMove) return;
 
@@ -218,18 +278,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
         // Add a message in the chat
         final card = CardGameRuleChecker.getCardFromNumber(cardsToPlay[0]);
-        final suitSymbol = {
-          Suit.spades: '♠️',
-          Suit.hearts: '♥️',
-          Suit.diamonds: '♦️',
-          Suit.clubs: '♣️',
-        }[card.suit]!;
+        final cardText = _getCardDisplayText(card);
+
+        final messageText = cardsToPlay.length > 1
+            ? 'Played $cardText and ${cardsToPlay.length - 1} more cards of the same suit!'
+            : 'Played $cardText';
 
         await chatRef.push().set({
           'uid': currentUserId,
           'email': currentUserEmail,
-          'text':
-              'Played 7 of $suitSymbol and ${cardsToPlay.length - 1} more cards of the same suit!',
+          'text': messageText,
           'timestamp': ServerValue.timestamp,
           'type': 'number',
           'number': cardsToPlay[0],
@@ -314,23 +372,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Add a message in the chat
       final card = CardGameRuleChecker.getCardFromNumber(number);
-      final suitSymbol = {
-        Suit.spades: '♠️',
-        Suit.hearts: '♥️',
-        Suit.diamonds: '♦️',
-        Suit.clubs: '♣️',
-      }[card.suit]!;
-
-      final cardType = card.value == CardValue.eight
-          ? '8'
-          : card.value == CardValue.jack
-              ? 'Jack'
-              : card.value.toString().split('.').last;
+      final cardText = _getCardDisplayText(card);
 
       await chatRef.push().set({
         'uid': currentUserId,
         'email': currentUserEmail,
-        'text': 'Selected $cardType of $suitSymbol',
+        'text': 'Selected $cardText',
         'timestamp': ServerValue.timestamp,
         'type': 'number',
         'number': number,
@@ -450,7 +497,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'uid': currentUserId,
       'email': currentUserEmail,
       'text':
-          '${participants[currentUserId]?['name']} skipped their turn and drew card ${random}',
+          '${participants[currentUserId]?['name']} skipped their turn and drew card $random',
       'timestamp': ServerValue.timestamp,
       'type': 'system',
     });
@@ -688,17 +735,13 @@ class _ChatScreenState extends State<ChatScreen> {
                                         // Add a message in the chat
                                         final card = CardGameRuleChecker
                                             .getCardFromNumber(cardsToPlay[0]);
-                                        final suitSymbol = {
-                                          Suit.spades: '♠️',
-                                          Suit.hearts: '♥️',
-                                          Suit.diamonds: '♦️',
-                                          Suit.clubs: '♣️',
-                                        }[card.suit]!;
+                                        final cardText =
+                                            _getCardDisplayText(card);
 
                                         final messageText = cardsToPlay.length >
                                                 1
-                                            ? 'Played 7 of $suitSymbol and ${cardsToPlay.length - 1} more cards of the same suit!'
-                                            : 'Played 7 of $suitSymbol';
+                                            ? 'Played $cardText and ${cardsToPlay.length - 1} more cards of the same suit!'
+                                            : 'Played $cardText';
 
                                         await chatRef.push().set({
                                           'uid': currentUserId,
