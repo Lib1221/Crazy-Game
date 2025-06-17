@@ -1,15 +1,14 @@
-import 'package:crazygame/services/realtime/realtime_chat_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../services/realtime/realtime_chat_service.dart';
+import '../theme/game_theme.dart';
+import '../controllers/auth_controller.dart';
 import 'chat_screen.dart';
-import 'auth_screen.dart';
+import 'settings_screen.dart';
 import 'create_group_screen.dart';
 import 'my_games_screen.dart';
 import 'leaderboard_screen.dart';
 import 'achievements_screen.dart';
-import 'friends_screen.dart';
-import 'settings_screen.dart';
-import '../theme/game_theme.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -22,11 +21,50 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final RealtimeChatService _chatService = RealtimeChatService();
   bool _isLoading = true;
   String? _error;
+  String? _playerName;
+  int _playerRank = 0;
 
   @override
   void initState() {
     super.initState();
     _loadChats();
+    _loadPlayerName();
+    _loadPlayerRank();
+  }
+
+  Future<void> _loadPlayerName() async {
+    final userId = _chatService.currentUserId;
+    if (userId != null) {
+      final userInfo = await _chatService.getUserInfo(userId);
+      if (userInfo != null) {
+        setState(() {
+          _playerName = userInfo['name'] as String?;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadPlayerRank() async {
+    final userId = _chatService.currentUserId;
+    if (userId != null) {
+      final userInfo = await _chatService.getUserInfo(userId);
+      if (userInfo != null) {
+        setState(() {
+          _playerRank = userInfo['rank'] as int? ?? 0;
+        });
+      }
+    }
+  }
+
+  int _calculateLevel(int rank) {
+    // Level = (rank / 5) + 1, rounded down
+    // This means:
+    // - Every 5 ranks = 1 level
+    // - Level 1 starts at rank 0
+    // - Level 2 at rank 5
+    // - Level 3 at rank 10
+    // And so on...
+    return (rank ~/ 5) + 1;
   }
 
   Future<void> _loadChats() async {
@@ -54,42 +92,42 @@ class _ChatListScreenState extends State<ChatListScreen> {
     return Scaffold(
       backgroundColor: GameTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: GameTheme.textColor),
-            onPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
-          ),
-        ),
+        backgroundColor: GameTheme.surfaceColor,
         title: const Text(
-          'Game Rooms',
+          'Chats',
           style: TextStyle(
             color: GameTheme.textColor,
             fontWeight: FontWeight.bold,
           ),
         ),
+        iconTheme: const IconThemeData(color: GameTheme.textColor),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: GameTheme.textColor),
-            onPressed: _loadChats,
-          ),
-          IconButton(
-            icon: const Icon(Icons.search, color: GameTheme.textColor),
+            icon: const Icon(Icons.leaderboard),
             onPressed: () {
-              // TODO: Implement search
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LeaderboardScreen(),
+                ),
+              );
             },
           ),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline,
-                color: GameTheme.accentColor),
-            onPressed: () async {
-              final result = await Get.to(() => const CreateGroupScreen());
-              if (result != null) {
-                _loadChats();
-              }
+            icon: const Icon(Icons.add),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CreateGroupScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Get.to(() => const SettingsScreen());
             },
           ),
         ],
@@ -101,7 +139,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(GameTheme.spacingL),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   gradient: GameTheme.primaryGradient,
                 ),
                 child: Column(
@@ -124,10 +162,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               ),
                             ],
                           ),
-                          child: const CircleAvatar(
+                          child: CircleAvatar(
                             radius: 30,
                             backgroundColor: GameTheme.accentColor,
-                            child: Icon(Icons.person,
+                            child: const Icon(Icons.person,
                                 size: 30, color: GameTheme.textColor),
                           ),
                         ),
@@ -136,9 +174,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Player Name',
-                                style: TextStyle(
+                              Text(
+                                _playerName ?? 'Loading...',
+                                style: const TextStyle(
                                   color: GameTheme.textColor,
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
@@ -155,7 +193,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   borderRadius: BorderRadius.circular(
                                       GameTheme.borderRadiusMedium),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
@@ -163,10 +201,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                       color: GameTheme.accentColor,
                                       size: 16,
                                     ),
-                                    SizedBox(width: GameTheme.spacingS),
+                                    const SizedBox(width: GameTheme.spacingS),
                                     Text(
-                                      'Level 42',
-                                      style: TextStyle(
+                                      'Level ${_calculateLevel(_playerRank)}',
+                                      style: const TextStyle(
                                         color: GameTheme.textColor,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -216,13 +254,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       },
                     ),
                     _buildDrawerItem(
-                      icon: Icons.people,
-                      title: 'Friends',
-                      onTap: () {
-                        Get.to(() => const FriendsScreen());
-                      },
-                    ),
-                    _buildDrawerItem(
                       icon: Icons.settings,
                       title: 'Settings',
                       onTap: () {
@@ -246,8 +277,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   title: 'Logout',
                   isDestructive: true,
                   onTap: () async {
-                    await _chatService.logout();
-                    Get.offAll(() => const AuthScreen());
+                    final authController = Get.find<AuthController>();
+                    await authController.logout();
                   },
                 ),
               ),
@@ -282,7 +313,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     const SizedBox(height: GameTheme.spacingM),
                     Text(
                       _error!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: GameTheme.errorColor,
                         fontSize: 16,
                       ),
@@ -306,7 +337,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.error_outline,
                       size: 48,
                       color: GameTheme.errorColor,
@@ -314,7 +345,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     const SizedBox(height: GameTheme.spacingM),
                     Text(
                       'Error: ${snapshot.error}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: GameTheme.errorColor,
                         fontSize: 16,
                       ),
@@ -340,7 +371,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.sports_esports,
+                      Icons.casino,
                       size: 64,
                       color: GameTheme.accentColor.withOpacity(0.5),
                     ),
@@ -384,14 +415,91 @@ class _ChatListScreenState extends State<ChatListScreen> {
               );
             }
 
-            // Print metadata from group_chats/$groupChatId/metadata
-            print('=== Group Chats Metadata ===');
+            // Filter out chats where user has no cards
+            final validChats = chats.where((chat) {
+              final currentUserId = _chatService.currentUserId;
+              final participants =
+                  chat['participants'] as Map<String, dynamic>?;
+              final gameData = chat['gameData'] as Map<String, dynamic>?;
+              final userNumbers =
+                  gameData?['userNumbers'] as Map<String, dynamic>?;
+              final currentUserNumbers =
+                  userNumbers?[currentUserId]?['numbers'] as List<dynamic>?;
 
-            for (var chat in chats) {
-              print(chat);
-              print('-------------------');
+              return currentUserId != null &&
+                  participants != null &&
+                  participants.containsKey(currentUserId) &&
+                  currentUserNumbers != null &&
+                  currentUserNumbers.isNotEmpty;
+            }).toList();
+
+            if (validChats.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.casino,
+                      size: 64,
+                      color: GameTheme.accentColor.withOpacity(0.5),
+                    ),
+                    const SizedBox(height: GameTheme.spacingM),
+                    const Text(
+                      'No Active Games',
+                      style: TextStyle(
+                        color: GameTheme.textColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: GameTheme.spacingS),
+                    Text(
+                      'Join a game or create a new one to start playing!',
+                      style: TextStyle(
+                        color: GameTheme.textColor.withOpacity(0.7),
+                      ),
+                    ),
+                    const SizedBox(height: GameTheme.spacingL),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final result =
+                                await Get.to(() => const CreateGroupScreen());
+                            if (result != null) {
+                              _loadChats();
+                            }
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Room'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: GameTheme.accentColor,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: GameTheme.spacingL,
+                              vertical: GameTheme.spacingM,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: GameTheme.spacingM),
+                        ElevatedButton.icon(
+                          onPressed: _loadChats,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Refresh'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: GameTheme.surfaceColor,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: GameTheme.spacingL,
+                              vertical: GameTheme.spacingM,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
             }
-            print('========================');
 
             return GridView.builder(
               padding: const EdgeInsets.all(GameTheme.spacingM),
@@ -401,9 +509,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 crossAxisSpacing: GameTheme.spacingM,
                 mainAxisSpacing: GameTheme.spacingM,
               ),
-              itemCount: chats.length,
+              itemCount: validChats.length,
               itemBuilder: (context, index) {
-                final chat = chats[index];
+                final chat = validChats[index];
                 final groupChatId = chat['chatId'] as String;
                 final metadata = chat['metadata'] as Map<String, dynamic>?;
 
@@ -416,9 +524,18 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   },
                   child: Container(
                     decoration: BoxDecoration(
-                      gradient: chat['isActive'] == true
-                          ? GameTheme.primaryGradient
-                          : GameTheme.secondaryGradient,
+                      gradient: _isGameOver(chat)
+                          ? LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                GameTheme.errorColor.withOpacity(0.8),
+                                GameTheme.errorColor.withOpacity(0.6),
+                              ],
+                            )
+                          : chat['isActive'] == true
+                              ? GameTheme.primaryGradient
+                              : GameTheme.secondaryGradient,
                       borderRadius:
                           BorderRadius.circular(GameTheme.borderRadiusLarge),
                       boxShadow: GameTheme.glowShadow,
@@ -486,13 +603,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                           GameTheme.borderRadiusSmall),
                                     ),
                                     child: Text(
-                                      chat['isActive'] == true
-                                          ? 'Active'
-                                          : 'Inactive',
+                                      _isGameOver(chat)
+                                          ? 'Game Over'
+                                          : chat['isActive'] == true
+                                              ? 'Active'
+                                              : 'Inactive',
                                       style: TextStyle(
-                                        color: chat['isActive'] == true
-                                            ? GameTheme.accentColor
-                                            : GameTheme.errorColor,
+                                        color: _isGameOver(chat)
+                                            ? GameTheme.errorColor
+                                            : chat['isActive'] == true
+                                                ? GameTheme.accentColor
+                                                : GameTheme.errorColor,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -502,15 +623,48 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               ),
                               const SizedBox(height: GameTheme.spacingS),
                               Expanded(
-                                child: Text(
-                                  metadata?['description'] ??
-                                      'No description available',
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: GameTheme.textColor.withOpacity(0.8),
-                                    fontSize: 14,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (_isGameOver(chat)) ...[
+                                      const Text(
+                                        'Game Over',
+                                        style: TextStyle(
+                                          color: GameTheme.errorColor,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                          height: GameTheme.spacingS),
+                                      Text(
+                                        'Winner: ${_getWinnerName(chat)}',
+                                        style: TextStyle(
+                                          color: GameTheme.accentColor,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                          height: GameTheme.spacingS),
+                                    ],
+                                    Text(
+                                      _isGameOver(chat)
+                                          ? ''
+                                          : chat['metadata']?['description'] ??
+                                              'No description available',
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: _isGameOver(chat)
+                                            ? GameTheme.textColor
+                                                .withOpacity(0.9)
+                                            : GameTheme.textColor
+                                                .withOpacity(0.8),
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: GameTheme.spacingM),
@@ -587,6 +741,59 @@ class _ChatListScreenState extends State<ChatListScreen> {
         ),
       ),
     );
+  }
+
+  bool _isGameOver(Map<String, dynamic> chat) {
+    try {
+      final gameData = chat['gameData'] as Map<String, dynamic>?;
+      if (gameData == null) return false;
+
+      final userNumbers = gameData['userNumbers'] as Map<String, dynamic>?;
+      if (userNumbers == null) return false;
+
+      // Check if any participant has an empty number array
+      for (var participant in userNumbers.values) {
+        if (participant is Map) {
+          final numbers = participant['numbers'] as List<dynamic>?;
+          if (numbers == null || numbers.isEmpty) {
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  String _getWinnerName(Map<String, dynamic> chat) {
+    try {
+      final gameData = chat['gameData'] as Map<String, dynamic>?;
+      if (gameData == null) return 'Unknown';
+
+      final userNumbers = gameData['userNumbers'] as Map<String, dynamic>?;
+      if (userNumbers == null) return 'Unknown';
+
+      // Find the participant with empty numbers array
+      for (var entry in userNumbers.entries) {
+        final participant = entry.value as Map<String, dynamic>?;
+        if (participant != null) {
+          final numbers = participant['numbers'] as List<dynamic>?;
+          if (numbers == null || numbers.isEmpty) {
+            // Get the participant's name from metadata
+            final participants = chat['participants'] as Map<String, dynamic>?;
+            if (participants != null) {
+              final participantData =
+                  participants[entry.key] as Map<String, dynamic>?;
+              return participantData?['name'] ?? 'Unknown Player';
+            }
+          }
+        }
+      }
+      return 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
   }
 }
 

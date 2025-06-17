@@ -72,8 +72,11 @@ class AuthService {
         'createdAt': ServerValue.timestamp,
         'lastLogin': ServerValue.timestamp,
         'isOnline': true,
+        'rank': 0, // Default rank value
+        'chats': {} // Initialize empty chats object
       };
 
+      // Store user data in the users node with proper structure
       await _databaseService.getRef('users/$userId').set(userData);
     } catch (e) {
       rethrow;

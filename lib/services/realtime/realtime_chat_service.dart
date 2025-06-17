@@ -106,7 +106,6 @@ class RealtimeChatService {
           if (rawData == null) return <Map<String, dynamic>>[];
 
           if (rawData is! Map) {
-            print('Invalid data format: $rawData');
             return <Map<String, dynamic>>[];
           }
 
@@ -119,14 +118,12 @@ class RealtimeChatService {
               final chatData = entry.value as Map<String, dynamic>?;
 
               if (chatData == null) {
-                print('Null chat data for chatId: $chatId');
                 continue;
               }
 
               // Extract metadata
               final metadata = chatData['metadata'] as Map<String, dynamic>?;
               if (metadata == null) {
-                print('Null metadata for chatId: $chatId');
                 continue;
               }
 
@@ -134,7 +131,6 @@ class RealtimeChatService {
               final participants =
                   chatData['participants'] as Map<String, dynamic>?;
               if (participants == null) {
-                print('Null participants for chatId: $chatId');
                 continue;
               }
 
@@ -144,7 +140,6 @@ class RealtimeChatService {
                 createdAt = chatData['createdAt'] as int? ??
                     DateTime.now().millisecondsSinceEpoch;
               } catch (e) {
-                print('Error getting createdAt for chatId: $chatId - $e');
                 createdAt = DateTime.now().millisecondsSinceEpoch;
               }
 
@@ -167,7 +162,6 @@ class RealtimeChatService {
                 'turnTimer': chatData['turnTimer'] ?? {},
               });
             } catch (e) {
-              print('Error processing chat entry: $e');
               continue;
             }
           }
@@ -180,18 +174,14 @@ class RealtimeChatService {
                 .compareTo(timeA); // Descending order for most recent first
           });
 
-          print('Successfully processed ${chats.length} chats');
           return chats;
         } catch (e) {
-          print('Error processing chat data: $e');
           return <Map<String, dynamic>>[];
         }
       }).handleError((error) {
-        print('Error in getGroupChatsData stream: $error');
         return <Map<String, dynamic>>[];
       });
     } catch (e) {
-      print('Error in getGroupChatsData: $e');
       return Stream.value(<Map<String, dynamic>>[]);
     }
   }

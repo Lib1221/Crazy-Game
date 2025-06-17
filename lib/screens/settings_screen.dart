@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/game_theme.dart';
 import 'edit_profile_screen.dart';
-import 'privacy_settings_screen.dart';
-import 'notification_settings_screen.dart';
 import 'appearance_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -46,37 +44,11 @@ class SettingsScreen extends StatelessWidget {
                     );
                   },
                 ),
-                _buildButtonTile(
-                  title: 'Privacy',
-                  subtitle: 'Manage your privacy settings',
-                  icon: Icons.security,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const PrivacySettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
               ],
             ),
             _buildSection(
               title: 'Preferences',
               children: [
-                _buildButtonTile(
-                  title: 'Notifications',
-                  subtitle: 'Configure notification settings',
-                  icon: Icons.notifications,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationSettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
                 _buildButtonTile(
                   title: 'Appearance',
                   subtitle: 'Customize the app\'s look and feel',
@@ -88,35 +60,6 @@ class SettingsScreen extends StatelessWidget {
                         builder: (context) => const AppearanceSettingsScreen(),
                       ),
                     );
-                  },
-                ),
-              ],
-            ),
-            _buildSection(
-              title: 'Support',
-              children: [
-                _buildButtonTile(
-                  title: 'Help Center',
-                  subtitle: 'Get help and support',
-                  icon: Icons.help,
-                  onTap: () {
-                    // TODO: Implement help center
-                  },
-                ),
-                _buildButtonTile(
-                  title: 'Report a Problem',
-                  subtitle: 'Let us know if you encounter any issues',
-                  icon: Icons.bug_report,
-                  onTap: () {
-                    // TODO: Implement bug report
-                  },
-                ),
-                _buildButtonTile(
-                  title: 'About',
-                  subtitle: 'Learn more about the app',
-                  icon: Icons.info,
-                  onTap: () {
-                    // TODO: Implement about screen
                   },
                 ),
               ],
@@ -248,7 +191,6 @@ class SettingsScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              // TODO: Implement logout
               Navigator.pop(context);
             },
             child: const Text(
@@ -261,4 +203,3 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
-

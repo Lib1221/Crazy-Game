@@ -1,16 +1,100 @@
 import 'package:flutter/material.dart';
 import '../theme/game_theme.dart';
+import '../services/realtime/realtime_chat_service.dart';
 
-class AchievementsScreen extends StatelessWidget {
+class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
 
   @override
+  State<AchievementsScreen> createState() => _AchievementsScreenState();
+}
+
+class _AchievementsScreenState extends State<AchievementsScreen> {
+  final RealtimeChatService _chatService = RealtimeChatService();
+  int _playerRank = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlayerRank();
+  }
+
+  Future<void> _loadPlayerRank() async {
+    setState(() => _isLoading = true);
+    final userId = _chatService.currentUserId;
+    if (userId != null) {
+      final userInfo = await _chatService.getUserInfo(userId);
+      if (userInfo != null) {
+        setState(() {
+          _playerRank = userInfo['rank'] as int? ?? 0;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<Achievement> _getAchievements() {
+    return [
+      Achievement(
+        id: 'rank_1',
+        title: 'Novice Player',
+        description: 'Reach Rank 5',
+        icon: Icons.star,
+        requiredRank: 5,
+        reward: 'Level 2',
+      ),
+      Achievement(
+        id: 'rank_2',
+        title: 'Rising Star',
+        description: 'Reach Rank 10',
+        icon: Icons.star,
+        requiredRank: 10,
+        reward: 'Level 3',
+      ),
+      Achievement(
+        id: 'rank_3',
+        title: 'Skilled Player',
+        description: 'Reach Rank 20',
+        icon: Icons.star,
+        requiredRank: 20,
+        reward: 'Level 5',
+      ),
+      Achievement(
+        id: 'rank_4',
+        title: 'Master Player',
+        description: 'Reach Rank 50',
+        icon: Icons.star,
+        requiredRank: 50,
+        reward: 'Level 11',
+      ),
+      Achievement(
+        id: 'rank_5',
+        title: 'Grand Master',
+        description: 'Reach Rank 100',
+        icon: Icons.star,
+        requiredRank: 100,
+        reward: 'Level 21',
+      ),
+      Achievement(
+        id: 'rank_6',
+        title: 'Legend',
+        description: 'Reach Rank 200',
+        icon: Icons.star,
+        requiredRank: 200,
+        reward: 'Level 41',
+      ),
+    ];
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final achievements = _getAchievements();
+
     return Scaffold(
       backgroundColor: GameTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: GameTheme.surfaceColor,
         title: const Text(
           'Achievements',
           style: TextStyle(
@@ -18,153 +102,176 @@ class AchievementsScreen extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        iconTheme: const IconThemeData(color: GameTheme.textColor),
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: GameTheme.primaryGradient,
-        ),
-        child: GridView.builder(
-          padding: const EdgeInsets.all(GameTheme.spacingM),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.85,
-            crossAxisSpacing: GameTheme.spacingM,
-            mainAxisSpacing: GameTheme.spacingM,
-          ),
-          itemCount: 6,
-          itemBuilder: (context, index) {
-            return _buildAchievementCard(
-              title: _getAchievementTitle(index),
-              description: _getAchievementDescription(index),
-              icon: _getAchievementIcon(index),
-              isUnlocked: index < 3,
-              progress: index < 3 ? 1.0 : (index - 2) * 0.2,
-            );
-          },
-        ),
-      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(GameTheme.accentColor),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadPlayerRank,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(GameTheme.spacingM),
+                itemCount: achievements.length,
+                itemBuilder: (context, index) {
+                  final achievement = achievements[index];
+                  final isUnlocked = _playerRank >= achievement.requiredRank;
+                  final progress =
+                      (_playerRank / achievement.requiredRank * 100)
+                          .clamp(0.0, 100.0);
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: GameTheme.spacingM),
+                    decoration: BoxDecoration(
+                      gradient: isUnlocked
+                          ? GameTheme.primaryGradient
+                          : LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                GameTheme.surfaceColor,
+                                GameTheme.surfaceColor.withOpacity(0.8),
+                              ],
+                            ),
+                      borderRadius:
+                          BorderRadius.circular(GameTheme.borderRadiusLarge),
+                      boxShadow: isUnlocked
+                          ? [
+                              BoxShadow(
+                                color: GameTheme.accentColor.withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.all(GameTheme.spacingS),
+                            decoration: BoxDecoration(
+                              color: isUnlocked
+                                  ? GameTheme.accentColor
+                                  : GameTheme.surfaceColor,
+                              borderRadius: BorderRadius.circular(
+                                  GameTheme.borderRadiusMedium),
+                            ),
+                            child: Icon(
+                              achievement.icon,
+                              color: isUnlocked
+                                  ? GameTheme.textColor
+                                  : GameTheme.textColor.withOpacity(0.5),
+                            ),
+                          ),
+                          title: Text(
+                            achievement.title,
+                            style: TextStyle(
+                              color: isUnlocked
+                                  ? GameTheme.textColor
+                                  : GameTheme.textColor.withOpacity(0.7),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                achievement.description,
+                                style: TextStyle(
+                                  color: isUnlocked
+                                      ? GameTheme.textColor.withOpacity(0.8)
+                                      : GameTheme.textColor.withOpacity(0.5),
+                                ),
+                              ),
+                              const SizedBox(height: GameTheme.spacingS),
+                              Text(
+                                'Reward: ${achievement.reward}',
+                                style: TextStyle(
+                                  color: GameTheme.accentColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          trailing: isUnlocked
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: GameTheme.spacingS,
+                                    vertical: GameTheme.spacingXS,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: GameTheme.accentColor,
+                                    borderRadius: BorderRadius.circular(
+                                        GameTheme.borderRadiusSmall),
+                                  ),
+                                  child: const Text(
+                                    'Unlocked!',
+                                    style: TextStyle(
+                                      color: GameTheme.textColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  'Rank ${achievement.requiredRank}',
+                                  style: TextStyle(
+                                    color: GameTheme.textColor.withOpacity(0.5),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                        if (!isUnlocked)
+                          Padding(
+                            padding: const EdgeInsets.all(GameTheme.spacingM),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Progress: ${progress.toStringAsFixed(1)}%',
+                                  style: TextStyle(
+                                    color: GameTheme.textColor.withOpacity(0.7),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: GameTheme.spacingS),
+                                LinearProgressIndicator(
+                                  value: progress / 100,
+                                  backgroundColor:
+                                      GameTheme.surfaceColor.withOpacity(0.3),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      GameTheme.accentColor),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
+}
 
-  String _getAchievementTitle(int index) {
-    final titles = [
-      'First Victory',
-      'Master Player',
-      'Social Butterfly',
-      'Game Collector',
-      'Speed Runner',
-      'Perfect Score',
-    ];
-    return titles[index];
-  }
+class Achievement {
+  final String id;
+  final String title;
+  final String description;
+  final IconData icon;
+  final int requiredRank;
+  final String reward;
 
-  String _getAchievementDescription(int index) {
-    final descriptions = [
-      'Win your first game',
-      'Win 10 games',
-      'Play with 5 different players',
-      'Create 3 game rooms',
-      'Win a game in under 5 minutes',
-      'Score 1000 points in a single game',
-    ];
-    return descriptions[index];
-  }
-
-  IconData _getAchievementIcon(int index) {
-    final icons = [
-      Icons.emoji_events,
-      Icons.star,
-      Icons.people,
-      Icons.games,
-      Icons.timer,
-      Icons.score,
-    ];
-    return icons[index];
-  }
-
-  Widget _buildAchievementCard({
-    required String title,
-    required String description,
-    required IconData icon,
-    required bool isUnlocked,
-    required double progress,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: GameTheme.surfaceColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(GameTheme.borderRadiusLarge),
-        border: Border.all(
-          color: isUnlocked
-              ? GameTheme.accentColor
-              : GameTheme.textColor.withOpacity(0.1),
-          width: 2,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(GameTheme.spacingM),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isUnlocked
-                  ? GameTheme.accentColor.withOpacity(0.2)
-                  : GameTheme.textColor.withOpacity(0.1),
-            ),
-            child: Icon(
-              icon,
-              size: 40,
-              color: isUnlocked
-                  ? GameTheme.accentColor
-                  : GameTheme.textColor.withOpacity(0.5),
-            ),
-          ),
-          const SizedBox(height: GameTheme.spacingM),
-          Text(
-            title,
-            style: TextStyle(
-              color: isUnlocked
-                  ? GameTheme.textColor
-                  : GameTheme.textColor.withOpacity(0.5),
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: GameTheme.spacingS),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: GameTheme.spacingM),
-            child: Text(
-              description,
-              style: TextStyle(
-                color: isUnlocked
-                    ? GameTheme.textColor.withOpacity(0.7)
-                    : GameTheme.textColor.withOpacity(0.3),
-                fontSize: 12,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(height: GameTheme.spacingM),
-          if (!isUnlocked) ...[
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: GameTheme.textColor.withOpacity(0.1),
-              valueColor: AlwaysStoppedAnimation<Color>(GameTheme.accentColor),
-            ),
-            const SizedBox(height: GameTheme.spacingS),
-            Text(
-              '${(progress * 100).toInt()}%',
-              style: TextStyle(
-                color: GameTheme.textColor.withOpacity(0.5),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Achievement({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.requiredRank,
+    required this.reward,
+  });
 }

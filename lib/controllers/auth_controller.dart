@@ -1,14 +1,14 @@
-import 'package:crazygame/services/realtime/realtime_chat_service.dart';
 import 'package:crazygame/services/error_service.dart';
+import 'package:crazygame/services/realtime/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 
 class AuthController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final RealtimeChatService _chatService = RealtimeChatService();
+  final AuthService _authService;
   final ErrorService _errorService = Get.find<ErrorService>();
+
+  AuthController() : _authService = AuthService(Get.find());
 
   final RxBool isLoading = false.obs;
   final RxBool isAuthenticated = false.obs;
@@ -37,6 +37,8 @@ class AuthController extends GetxController {
         email: email,
         password: password,
       );
+      Get.offAllNamed(
+          '/chats'); // Redirect to chat list screen after successful login
       return true;
     } on FirebaseAuthException catch (e) {
       String message = 'An error occurred';
@@ -61,20 +63,10 @@ class AuthController extends GetxController {
   Future<bool> signup(String name, String email, String password) async {
     try {
       isLoading.value = true;
-      // Create user with email and password
-      final UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // Create user profile in Firestore
-      await _firestore.collection('users').doc(userCredential.user!.uid).set({
-        'name': name,
-        'email': email,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
+      // Create user with email and password using AuthService
+      await _authService.signUp(email, password, name);
+      Get.offAllNamed(
+          '/chats'); // Redirect to chat list screen after successful signup
       return true;
     } on FirebaseAuthException catch (e) {
       String message = 'An error occurred';

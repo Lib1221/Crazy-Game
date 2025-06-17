@@ -1,16 +1,70 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 import '../theme/game_theme.dart';
 
-class LeaderboardScreen extends StatelessWidget {
+class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
+
+  @override
+  State<LeaderboardScreen> createState() => _LeaderboardScreenState();
+}
+
+class _LeaderboardScreenState extends State<LeaderboardScreen> {
+  final _database = FirebaseDatabase.instance;
+  List<Map<String, dynamic>> _users = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final usersRef = _database.ref('users');
+      final snapshot = await usersRef.get();
+
+      if (snapshot.exists) {
+        final users = <Map<String, dynamic>>[];
+        final data = snapshot.value as Map<dynamic, dynamic>;
+
+        data.forEach((key, value) {
+          if (value is Map) {
+            users.add({
+              'uid': key,
+              'name': value['name'] ?? 'Unknown',
+              'email': value['email'] ?? '',
+              'rank': value['rank'] ?? 0,
+            });
+          }
+        });
+
+        // Sort users by rank in descending order
+        users.sort((a, b) => (b['rank'] as int).compareTo(a['rank'] as int));
+
+        setState(() {
+          _users = users;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  int _calculateLevel(int rank) {
+    return (rank ~/ 5) + 1;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: GameTheme.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: GameTheme.surfaceColor,
         title: const Text(
           'Leaderboard',
           style: TextStyle(
@@ -18,173 +72,105 @@ class LeaderboardScreen extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        iconTheme: const IconThemeData(color: GameTheme.textColor),
       ),
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: GameTheme.primaryGradient,
         ),
-        child: ListView(
-          padding: const EdgeInsets.all(GameTheme.spacingM),
-          children: [
-            _buildTopPlayers(),
-            const SizedBox(height: GameTheme.spacingL),
-            _buildLeaderboardList(),
-          ],
-        ),
-      ),
-    );
-  }
+        child: _isLoading
+            ? Center(
+                child: CircularProgressIndicator(
+                  color: GameTheme.accentColor,
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: _loadUsers,
+                color: GameTheme.accentColor,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _users.length,
+                  itemBuilder: (context, index) {
+                    final user = _users[index];
+                    final rank = user['rank'] as int;
+                    final level = _calculateLevel(rank);
+                    final isTopThree = index < 3;
 
-  Widget _buildTopPlayers() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildTopPlayerCard(
-          rank: 2,
-          name: 'Player 2',
-          score: 850,
-          isCurrentUser: false,
-        ),
-        _buildTopPlayerCard(
-          rank: 1,
-          name: 'Player 1',
-          score: 1000,
-          isCurrentUser: true,
-          isFirst: true,
-        ),
-        _buildTopPlayerCard(
-          rank: 3,
-          name: 'Player 3',
-          score: 750,
-          isCurrentUser: false,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTopPlayerCard({
-    required int rank,
-    required String name,
-    required int score,
-    required bool isCurrentUser,
-    bool isFirst = false,
-  }) {
-    return Column(
-      children: [
-        Container(
-          width: isFirst ? 100 : 80,
-          height: isFirst ? 100 : 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: GameTheme.primaryGradient,
-            border: Border.all(
-              color:
-                  isCurrentUser ? GameTheme.accentColor : GameTheme.textColor,
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: GameTheme.accentColor.withOpacity(0.3),
-                blurRadius: 8,
-                spreadRadius: 2,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: GameTheme.surfaceColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isTopThree
+                              ? GameTheme.accentColor
+                              : GameTheme.surfaceColor.withOpacity(0.2),
+                          width: isTopThree ? 2 : 1,
+                        ),
+                      ),
+                      child: ListTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isTopThree
+                                ? GameTheme.accentColor.withOpacity(0.2)
+                                : GameTheme.surfaceColor.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isTopThree
+                                  ? GameTheme.accentColor
+                                  : GameTheme.surfaceColor.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                color: isTopThree
+                                    ? GameTheme.accentColor
+                                    : GameTheme.textColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          user['name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            color: GameTheme.textColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Level $level',
+                          style: TextStyle(
+                            color: GameTheme.textColor.withOpacity(0.7),
+                          ),
+                        ),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: GameTheme.accentColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${user['rank']} pts',
+                            style: const TextStyle(
+                              color: GameTheme.accentColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              rank.toString(),
-              style: const TextStyle(
-                color: GameTheme.textColor,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: GameTheme.spacingS),
-        Text(
-          name,
-          style: TextStyle(
-            color: isCurrentUser ? GameTheme.accentColor : GameTheme.textColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          score.toString(),
-          style: const TextStyle(
-            color: GameTheme.textColor,
-            fontSize: 16,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLeaderboardList() {
-    return Column(
-      children: List.generate(
-        10,
-        (index) => _buildLeaderboardItem(
-          rank: index + 4,
-          name: 'Player ${index + 4}',
-          score: 700 - (index * 50),
-          isCurrentUser: false,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLeaderboardItem({
-    required int rank,
-    required String name,
-    required int score,
-    required bool isCurrentUser,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: GameTheme.spacingS),
-      decoration: BoxDecoration(
-        color: GameTheme.surfaceColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(GameTheme.borderRadiusMedium),
-        border: Border.all(
-          color: isCurrentUser
-              ? GameTheme.accentColor
-              : GameTheme.textColor.withOpacity(0.1),
-          width: 1,
-        ),
-      ),
-      child: ListTile(
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: GameTheme.accentColor.withOpacity(0.2),
-          ),
-          child: Center(
-            child: Text(
-              rank.toString(),
-              style: const TextStyle(
-                color: GameTheme.textColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        title: Text(
-          name,
-          style: TextStyle(
-            color: isCurrentUser ? GameTheme.accentColor : GameTheme.textColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        trailing: Text(
-          score.toString(),
-          style: const TextStyle(
-            color: GameTheme.textColor,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
       ),
     );
   }

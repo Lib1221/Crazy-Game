@@ -74,27 +74,6 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                 ),
               ],
             ),
-            _buildSection(
-              title: 'Customization',
-              children: [
-                _buildButtonTile(
-                  title: 'Custom Theme',
-                  subtitle: 'Create your own color scheme',
-                  icon: Icons.palette,
-                  onTap: () {
-                    // TODO: Implement custom theme creator
-                  },
-                ),
-                _buildButtonTile(
-                  title: 'Game Icons',
-                  subtitle: 'Choose your preferred game icons',
-                  icon: Icons.extension,
-                  onTap: () {
-                    // TODO: Implement icon selector
-                  },
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -313,49 +292,6 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         value: value,
         onChanged: onChanged,
         activeColor: GameTheme.accentColor,
-      ),
-    );
-  }
-
-  Widget _buildButtonTile({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: GameTheme.textColor.withOpacity(0.1),
-            width: 1,
-          ),
-        ),
-      ),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: GameTheme.accentColor,
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: GameTheme.textColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            color: GameTheme.textColor.withOpacity(0.7),
-            fontSize: 12,
-          ),
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-          color: GameTheme.textColor,
-        ),
-        onTap: onTap,
       ),
     );
   }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
 import 'firebase_options.dart';
-import 'screens/auth_screen.dart';
 import 'screens/chat_list_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
@@ -11,6 +10,7 @@ import 'controllers/auth_controller.dart';
 import 'controllers/profile_controller.dart';
 import 'controllers/user_settings_controller.dart';
 import 'services/error_service.dart';
+import 'services/realtime/database_service.dart';
 import 'theme.dart';
 
 void main() async {
@@ -21,6 +21,7 @@ void main() async {
 
   // Initialize services
   await Get.putAsync(() => ErrorService().init());
+  Get.put(DatabaseService(), permanent: true);
 
   // Initialize controllers
   Get.put(AuthController(), permanent: true);
@@ -36,7 +37,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settingsController = Get.find<UserSettingsController>();
-    final authController = Get.find<AuthController>();
+    Get.find<AuthController>();
 
     return GetMaterialApp(
       title: 'Crazy Game',
@@ -50,10 +51,6 @@ class MyApp extends StatelessWidget {
         GetPage(
           name: '/',
           page: () => const SplashScreen(),
-        ),
-        GetPage(
-          name: '/auth',
-          page: () => const AuthScreen(),
         ),
         GetPage(
           name: '/login',

@@ -183,7 +183,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               labelText: 'Room Name',
                               labelStyle: TextStyle(
                                   color: GameTheme.textColor.withOpacity(0.7)),
-                              prefixIcon: const Icon(Icons.sports_esports,
+                              prefixIcon: Icon(Icons.sports_esports,
                                   color: GameTheme.accentColor),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(
@@ -202,7 +202,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(
                                     GameTheme.borderRadiusMedium),
-                                borderSide: const BorderSide(
+                                borderSide: BorderSide(
                                     color: GameTheme.accentColor),
                               ),
                               filled: true,
