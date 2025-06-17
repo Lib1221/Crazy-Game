@@ -93,8 +93,130 @@ class RealtimeChatService {
       _chatService.updateGroupName(groupChatId: groupChatId, newName: newName);
   Future<Map<String, dynamic>> getChatInfo(String chatId) =>
       _chatService.getChatInfo(chatId);
-  Stream<List<Map<String, dynamic>>> getGroupChatsData() =>
-      _chatService.getGroupChatsData();
+  Stream<List<Map<String, dynamic>>> getGroupChatsData() {
+    try {
+      final user = _authService.currentUser;
+      if (user == null) return Stream.value(<Map<String, dynamic>>[]);
+
+      return _databaseService.getRef('group_chats').onValue.map((event) {
+        try {
+          if (event.snapshot.value == null) return <Map<String, dynamic>>[];
+
+          final rawData = event.snapshot.value;
+          if (rawData == null) return <Map<String, dynamic>>[];
+
+          if (rawData is! Map) {
+            print('Invalid data format: $rawData');
+            return <Map<String, dynamic>>[];
+          }
+
+          final data = Map<String, dynamic>.from(rawData);
+          final List<Map<String, dynamic>> chats = [];
+
+          for (var entry in data.entries) {
+            try {
+              final chatId = entry.key;
+              final chatData = entry.value as Map<String, dynamic>?;
+
+              if (chatData == null) {
+                print('Null chat data for chatId: $chatId');
+                continue;
+              }
+
+              final participants =
+                  chatData['participants'] as Map<String, dynamic>?;
+              if (participants == null) {
+                print('Null participants for chatId: $chatId');
+                continue;
+              }
+
+              // Check if current user is a participant
+              if (!participants.containsKey(user.uid)) {
+                print(
+                    'User ${user.uid} not in participants for chatId: $chatId');
+                continue;
+              }
+
+              // Get last message
+              String? lastMessage;
+              final messages = chatData['messages'] as Map<String, dynamic>?;
+              if (messages != null && messages.isNotEmpty) {
+                try {
+                  final lastMessageData =
+                      messages.values.last as Map<String, dynamic>?;
+                  if (lastMessageData != null) {
+                    lastMessage = lastMessageData['content'] as String?;
+                  }
+                } catch (e) {
+                  print(
+                      'Error processing last message for chatId: $chatId - $e');
+                }
+              }
+
+              // Get game state
+              final gameData = chatData['game'] as Map<String, dynamic>?;
+              bool isActive = false;
+              if (gameData != null) {
+                final gameStart =
+                    gameData['gameStart'] as Map<String, dynamic>?;
+                if (gameStart != null) {
+                  final readyUsers =
+                      gameStart['readyUsers'] as Map<String, dynamic>?;
+                  isActive = readyUsers != null && readyUsers.isNotEmpty;
+                }
+              }
+
+              // Get chat name with fallback
+              String chatName = 'Unnamed Chat';
+              try {
+                chatName = chatData['name'] as String? ?? 'Unnamed Chat';
+              } catch (e) {
+                print('Error getting chat name for chatId: $chatId - $e');
+              }
+
+              // Get creation timestamp with fallback
+              int createdAt;
+              try {
+                createdAt = chatData['createdAt'] as int? ??
+                    DateTime.now().millisecondsSinceEpoch;
+              } catch (e) {
+                print('Error getting createdAt for chatId: $chatId - $e');
+                createdAt = DateTime.now().millisecondsSinceEpoch;
+              }
+
+              chats.add({
+                'chatId': chatId,
+                'name': chatName,
+                'lastMessage': lastMessage,
+                'participants': participants,
+                'createdAt': createdAt,
+                'isActive': isActive,
+                'gameData': gameData,
+              });
+            } catch (e) {
+              print('Error processing chat entry: $e');
+              continue;
+            }
+          }
+
+          // Sort chats by last activity
+          chats.sort((a, b) =>
+              (b['createdAt'] as int).compareTo(a['createdAt'] as int));
+          print('Successfully processed ${chats.length} chats');
+          return chats;
+        } catch (e) {
+          print('Error processing chat data: $e');
+          return <Map<String, dynamic>>[];
+        }
+      }).handleError((error) {
+        print('Error in getGroupChatsData stream: $error');
+        return <Map<String, dynamic>>[];
+      });
+    } catch (e) {
+      print('Error in getGroupChatsData: $e');
+      return Stream.value(<Map<String, dynamic>>[]);
+    }
+  }
 
   // GlobalKey Management Methods
   GlobalKey getChatKey(String chatId) {

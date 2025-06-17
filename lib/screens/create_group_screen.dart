@@ -1,6 +1,7 @@
 import 'package:crazygame/services/realtime/realtime_chat_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../theme/game_theme.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   const CreateGroupScreen({super.key});
@@ -121,137 +122,359 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: GameTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Create Group Chat'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'Create Game Room',
+          style: TextStyle(
+            color: GameTheme.textColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: GameTheme.textColor),
+          onPressed: () => Get.back(),
+        ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _groupNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Group Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.group),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Add Participants',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search by Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Enter email to search users',
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                    onChanged: _searchUsers,
-                  ),
-                  if (_isSearching)
-                    const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                  if (_errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  if (_searchResults.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(GameTheme.accentColor),
+              ),
+            )
+          : Container(
+              decoration: BoxDecoration(
+                gradient: GameTheme.primaryGradient,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(GameTheme.spacingM),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                     Container(
-                      constraints: const BoxConstraints(maxHeight: 200),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(4),
+                        color: GameTheme.surfaceColor.withOpacity(0.1),
+                        borderRadius:
+                            BorderRadius.circular(GameTheme.borderRadiusLarge),
+                        border: Border.all(
+                          color: GameTheme.accentColor.withOpacity(0.2),
+                        ),
                       ),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: _searchResults.length,
-                        itemBuilder: (context, index) {
-                          final user = _searchResults[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: Theme.of(context).primaryColor,
-                              child: Text(
-                                user['name'][0].toUpperCase(),
-                                style: const TextStyle(color: Colors.white),
+                      padding: const EdgeInsets.all(GameTheme.spacingM),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Room Details',
+                            style: TextStyle(
+                              color: GameTheme.textColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: GameTheme.spacingM),
+                          TextFormField(
+                            controller: _groupNameController,
+                            style: const TextStyle(color: GameTheme.textColor),
+                            decoration: InputDecoration(
+                              labelText: 'Room Name',
+                              labelStyle: TextStyle(
+                                  color: GameTheme.textColor.withOpacity(0.7)),
+                              prefixIcon: const Icon(Icons.sports_esports,
+                                  color: GameTheme.accentColor),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                borderSide: BorderSide(
+                                    color:
+                                        GameTheme.accentColor.withOpacity(0.2)),
                               ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                borderSide: BorderSide(
+                                    color:
+                                        GameTheme.accentColor.withOpacity(0.2)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                borderSide: const BorderSide(
+                                    color: GameTheme.accentColor),
+                              ),
+                              filled: true,
+                              fillColor:
+                                  GameTheme.surfaceColor.withOpacity(0.1),
                             ),
-                            title: Text(user['name']),
-                            subtitle: Text(user['email']),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.add_circle),
-                              color: Theme.of(context).primaryColor,
-                              onPressed: () => _addParticipant(user),
-                            ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                  if (_participants.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Selected Participants:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: GameTheme.spacingL),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: GameTheme.surfaceColor.withOpacity(0.1),
+                        borderRadius:
+                            BorderRadius.circular(GameTheme.borderRadiusLarge),
+                        border: Border.all(
+                          color: GameTheme.accentColor.withOpacity(0.2),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _participants.length,
-                        itemBuilder: (context, index) {
-                          final participant = _participants[index];
-                          return Card(
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                child: Text(
-                                  participant['name'][0].toUpperCase(),
-                                  style: const TextStyle(color: Colors.white),
+                      padding: const EdgeInsets.all(GameTheme.spacingM),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Add Players',
+                            style: TextStyle(
+                              color: GameTheme.textColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: GameTheme.spacingM),
+                          TextFormField(
+                            controller: _emailController,
+                            style: const TextStyle(color: GameTheme.textColor),
+                            decoration: InputDecoration(
+                              labelText: 'Search by Email',
+                              labelStyle: TextStyle(
+                                  color: GameTheme.textColor.withOpacity(0.7)),
+                              prefixIcon: const Icon(Icons.search,
+                                  color: GameTheme.accentColor),
+                              hintText: 'Enter email to search players',
+                              hintStyle: TextStyle(
+                                  color: GameTheme.textColor.withOpacity(0.5)),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                borderSide: BorderSide(
+                                    color:
+                                        GameTheme.accentColor.withOpacity(0.2)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                borderSide: BorderSide(
+                                    color:
+                                        GameTheme.accentColor.withOpacity(0.2)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                borderSide: const BorderSide(
+                                    color: GameTheme.accentColor),
+                              ),
+                              filled: true,
+                              fillColor:
+                                  GameTheme.surfaceColor.withOpacity(0.1),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            onChanged: _searchUsers,
+                          ),
+                          if (_isSearching)
+                            const Padding(
+                              padding: EdgeInsets.all(GameTheme.spacingM),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      GameTheme.accentColor),
                                 ),
                               ),
-                              title: Text(participant['name']),
-                              subtitle: Text(participant['email']),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.remove_circle),
-                                color: Colors.red,
-                                onPressed: () =>
-                                    _removeParticipant(participant['email']),
+                            ),
+                          if (_errorMessage != null)
+                            Container(
+                              margin: const EdgeInsets.only(
+                                  top: GameTheme.spacingM),
+                              padding: const EdgeInsets.all(GameTheme.spacingM),
+                              decoration: BoxDecoration(
+                                color: GameTheme.errorColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                border: Border.all(
+                                    color:
+                                        GameTheme.errorColor.withOpacity(0.2)),
+                              ),
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                    color: GameTheme.errorColor),
                               ),
                             ),
-                          );
-                        },
+                          if (_searchResults.isNotEmpty) ...[
+                            const SizedBox(height: GameTheme.spacingM),
+                            Container(
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              decoration: BoxDecoration(
+                                color: GameTheme.surfaceColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(
+                                    GameTheme.borderRadiusMedium),
+                                border: Border.all(
+                                    color:
+                                        GameTheme.accentColor.withOpacity(0.2)),
+                              ),
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: _searchResults.length,
+                                itemBuilder: (context, index) {
+                                  final user = _searchResults[index];
+                                  return ListTile(
+                                    leading: Container(
+                                      padding: const EdgeInsets.all(
+                                          GameTheme.spacingS),
+                                      decoration: BoxDecoration(
+                                        color: GameTheme.accentColor
+                                            .withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(
+                                            GameTheme.borderRadiusMedium),
+                                      ),
+                                      child: Text(
+                                        user['name'][0].toUpperCase(),
+                                        style: const TextStyle(
+                                          color: GameTheme.textColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      user['name'],
+                                      style: const TextStyle(
+                                          color: GameTheme.textColor),
+                                    ),
+                                    subtitle: Text(
+                                      user['email'],
+                                      style: TextStyle(
+                                          color: GameTheme.textColor
+                                              .withOpacity(0.7)),
+                                    ),
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.add_circle,
+                                          color: GameTheme.accentColor),
+                                      onPressed: () => _addParticipant(user),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (_participants.isNotEmpty) ...[
+                      const SizedBox(height: GameTheme.spacingL),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: GameTheme.surfaceColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(
+                              GameTheme.borderRadiusLarge),
+                          border: Border.all(
+                            color: GameTheme.accentColor.withOpacity(0.2),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(GameTheme.spacingM),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Selected Players',
+                              style: TextStyle(
+                                color: GameTheme.textColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: GameTheme.spacingM),
+                            Container(
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: _participants.length,
+                                itemBuilder: (context, index) {
+                                  final participant = _participants[index];
+                                  return Container(
+                                    margin: const EdgeInsets.only(
+                                        bottom: GameTheme.spacingS),
+                                    decoration: BoxDecoration(
+                                      color: GameTheme.surfaceColor
+                                          .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(
+                                          GameTheme.borderRadiusMedium),
+                                      border: Border.all(
+                                        color: GameTheme.accentColor
+                                            .withOpacity(0.2),
+                                      ),
+                                    ),
+                                    child: ListTile(
+                                      leading: Container(
+                                        padding: const EdgeInsets.all(
+                                            GameTheme.spacingS),
+                                        decoration: BoxDecoration(
+                                          color: GameTheme.accentColor
+                                              .withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(
+                                              GameTheme.borderRadiusMedium),
+                                        ),
+                                        child: Text(
+                                          participant['name'][0].toUpperCase(),
+                                          style: const TextStyle(
+                                            color: GameTheme.textColor,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      title: Text(
+                                        participant['name'],
+                                        style: const TextStyle(
+                                            color: GameTheme.textColor),
+                                      ),
+                                      subtitle: Text(
+                                        participant['email'],
+                                        style: TextStyle(
+                                            color: GameTheme.textColor
+                                                .withOpacity(0.7)),
+                                      ),
+                                      trailing: IconButton(
+                                        icon: const Icon(Icons.remove_circle,
+                                            color: GameTheme.errorColor),
+                                        onPressed: () => _removeParticipant(
+                                            participant['email']),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: GameTheme.spacingL),
+                    ElevatedButton(
+                      onPressed: _createGroup,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: GameTheme.accentColor,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: GameTheme.spacingM),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                              GameTheme.borderRadiusMedium),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Create Game Room',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: GameTheme.textColor,
+                        ),
                       ),
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _createGroup,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Create Group'),
-                  ),
-                ],
+                ),
               ),
             ),
     );

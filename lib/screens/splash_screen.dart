@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../theme.dart';
+import '../theme/game_theme.dart';
 import '../controllers/auth_controller.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -48,97 +48,103 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // Animated background
-          AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              // Update particles
-              for (var particle in _particles) {
-                particle.update();
-              }
-              return CustomPaint(
-                painter: ParticlePainter(_particles),
-                size: Size.infinite,
-              );
-            },
-          ),
-          // Content
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        AppTheme.primaryColor,
-                        AppTheme.primaryColor.withOpacity(0.8),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primaryColor.withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
+      backgroundColor: GameTheme.backgroundColor,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: GameTheme.primaryGradient,
+        ),
+        child: Stack(
+          children: [
+            // Animated background
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                // Update particles
+                for (var particle in _particles) {
+                  particle.update();
+                }
+                return CustomPaint(
+                  painter: ParticlePainter(_particles),
+                  size: Size.infinite,
+                );
+              },
+            ),
+            // Content
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          GameTheme.accentColor,
+                          GameTheme.accentColor.withOpacity(0.8),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.games,
-                    size: 60,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // Title
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [
-                      AppTheme.primaryColor,
-                      AppTheme.accentColor,
-                    ],
-                  ).createShader(bounds),
-                  child: const Text(
-                    'Game Hub',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
+                      boxShadow: [
+                        BoxShadow(
+                          color: GameTheme.accentColor.withOpacity(0.3),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.games,
+                      size: 60,
                       color: Colors.white,
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                // Subtitle
-                Text(
-                  'Connect. Play. Win.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[400],
+                  const SizedBox(height: 24),
+                  // Title
+                  ShaderMask(
+                    shaderCallback: (bounds) => LinearGradient(
+                      colors: [
+                        GameTheme.accentColor,
+                        GameTheme.accentColor.withOpacity(0.8),
+                      ],
+                    ).createShader(bounds),
+                    child: const Text(
+                      'Game Hub',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 48),
-                // Loading indicator
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: CircularProgressIndicator(
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-                    strokeWidth: 3,
+                  const SizedBox(height: 8),
+                  // Subtitle
+                  Text(
+                    'Connect. Play. Win.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: GameTheme.textColor.withOpacity(0.7),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 48),
+                  // Loading indicator
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(GameTheme.accentColor),
+                      strokeWidth: 3,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -180,7 +186,7 @@ class ParticlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     for (var particle in particles) {
       final paint = Paint()
-        ..color = Colors.white.withOpacity(particle.opacity)
+        ..color = GameTheme.accentColor.withOpacity(particle.opacity * 0.5)
         ..style = PaintingStyle.fill;
 
       canvas.drawCircle(
