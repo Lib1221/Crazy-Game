@@ -123,55 +123,19 @@ class RealtimeChatService {
                 continue;
               }
 
+              // Extract metadata
+              final metadata = chatData['metadata'] as Map<String, dynamic>?;
+              if (metadata == null) {
+                print('Null metadata for chatId: $chatId');
+                continue;
+              }
+
+              // Extract participants
               final participants =
                   chatData['participants'] as Map<String, dynamic>?;
               if (participants == null) {
                 print('Null participants for chatId: $chatId');
                 continue;
-              }
-
-              // Check if current user is a participant
-              if (!participants.containsKey(user.uid)) {
-                print(
-                    'User ${user.uid} not in participants for chatId: $chatId');
-                continue;
-              }
-
-              // Get last message
-              String? lastMessage;
-              final messages = chatData['messages'] as Map<String, dynamic>?;
-              if (messages != null && messages.isNotEmpty) {
-                try {
-                  final lastMessageData =
-                      messages.values.last as Map<String, dynamic>?;
-                  if (lastMessageData != null) {
-                    lastMessage = lastMessageData['content'] as String?;
-                  }
-                } catch (e) {
-                  print(
-                      'Error processing last message for chatId: $chatId - $e');
-                }
-              }
-
-              // Get game state
-              final gameData = chatData['game'] as Map<String, dynamic>?;
-              bool isActive = false;
-              if (gameData != null) {
-                final gameStart =
-                    gameData['gameStart'] as Map<String, dynamic>?;
-                if (gameStart != null) {
-                  final readyUsers =
-                      gameStart['readyUsers'] as Map<String, dynamic>?;
-                  isActive = readyUsers != null && readyUsers.isNotEmpty;
-                }
-              }
-
-              // Get chat name with fallback
-              String chatName = 'Unnamed Chat';
-              try {
-                chatName = chatData['name'] as String? ?? 'Unnamed Chat';
-              } catch (e) {
-                print('Error getting chat name for chatId: $chatId - $e');
               }
 
               // Get creation timestamp with fallback
@@ -186,12 +150,21 @@ class RealtimeChatService {
 
               chats.add({
                 'chatId': chatId,
-                'name': chatName,
-                'lastMessage': lastMessage,
+                'metadata': metadata, // Include full metadata
+                'name': metadata['name'] ?? 'Unnamed Chat',
+                'isActive': metadata['isActive'] ?? true,
+                'lastMessage': chatData['lastMessage']?.toString() ?? '',
+                'lastMessageTime': chatData['lastMessageTime'],
+                'lastMessageSender': chatData['lastMessageSender'],
                 'participants': participants,
                 'createdAt': createdAt,
-                'isActive': isActive,
-                'gameData': gameData,
+                'totalMessages': metadata['totalMessages'] ?? 0,
+                'lastActivity': metadata['lastActivity'],
+                'readBy': metadata['readBy'],
+                'gameData': chatData['game'] ?? {},
+                'turn': chatData['turn'] ?? {},
+                'gameStart': chatData['gameStart'] ?? {},
+                'turnTimer': chatData['turnTimer'] ?? {},
               });
             } catch (e) {
               print('Error processing chat entry: $e');
@@ -199,9 +172,14 @@ class RealtimeChatService {
             }
           }
 
-          // Sort chats by last activity
-          chats.sort((a, b) =>
-              (b['createdAt'] as int).compareTo(a['createdAt'] as int));
+          // Sort chats by creation time (most recent first)
+          chats.sort((a, b) {
+            final timeA = a['createdAt'] as int? ?? 0;
+            final timeB = b['createdAt'] as int? ?? 0;
+            return timeB
+                .compareTo(timeA); // Descending order for most recent first
+          });
+
           print('Successfully processed ${chats.length} chats');
           return chats;
         } catch (e) {
