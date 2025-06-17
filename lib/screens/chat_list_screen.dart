@@ -155,7 +155,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                   borderRadius: BorderRadius.circular(
                                       GameTheme.borderRadiusMedium),
                                 ),
-                                child: Row(
+                                child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
@@ -163,7 +163,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                       color: GameTheme.accentColor,
                                       size: 16,
                                     ),
-                                    const SizedBox(width: GameTheme.spacingS),
+                                    SizedBox(width: GameTheme.spacingS),
                                     Text(
                                       'Level 42',
                                       style: TextStyle(
@@ -274,7 +274,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.error_outline,
                       size: 48,
                       color: GameTheme.errorColor,
@@ -384,20 +384,37 @@ class _ChatListScreenState extends State<ChatListScreen> {
               );
             }
 
-            return ListView.builder(
+            // Print metadata from group_chats/$groupChatId/metadata
+            print('=== Group Chats Metadata ===');
+
+            for (var chat in chats) {
+              print(chat);
+              print('-------------------');
+            }
+            print('========================');
+
+            return GridView.builder(
               padding: const EdgeInsets.all(GameTheme.spacingM),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.85,
+                crossAxisSpacing: GameTheme.spacingM,
+                mainAxisSpacing: GameTheme.spacingM,
+              ),
               itemCount: chats.length,
               itemBuilder: (context, index) {
                 final chat = chats[index];
+                final groupChatId = chat['chatId'] as String;
+                final metadata = chat['metadata'] as Map<String, dynamic>?;
+
                 return GestureDetector(
                   onTap: () {
                     Get.to(() => ChatScreen(
-                          chatId: chat['chatId'],
-                          chatName: chat['name'],
+                          chatId: groupChatId,
+                          chatName: metadata?['name'] ?? 'Unnamed Chat',
                         ));
                   },
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: GameTheme.spacingM),
                     decoration: BoxDecoration(
                       gradient: chat['isActive'] == true
                           ? GameTheme.primaryGradient
@@ -425,15 +442,33 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
-                                    child: Text(
-                                      chat['name'] ?? 'Unnamed Chat',
-                                      style: const TextStyle(
-                                        color: GameTheme.textColor,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    child: Row(
+                                      children: [
+                                        if (chat['createdBy'] ==
+                                            _chatService.currentUserId)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                right: GameTheme.spacingS),
+                                            child: Icon(
+                                              Icons.admin_panel_settings,
+                                              color: GameTheme.accentColor,
+                                              size: 20,
+                                            ),
+                                          ),
+                                        Expanded(
+                                          child: Text(
+                                            chat['metadata']?['name'] ??
+                                                'Unnamed Chat',
+                                            style: const TextStyle(
+                                              color: GameTheme.textColor,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   Container(
@@ -466,13 +501,16 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                 ],
                               ),
                               const SizedBox(height: GameTheme.spacingS),
-                              Text(
-                                chat['lastMessage'] ?? 'No activity yet',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: GameTheme.textColor.withOpacity(0.8),
-                                  fontSize: 14,
+                              Expanded(
+                                child: Text(
+                                  metadata?['description'] ??
+                                      'No description available',
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: GameTheme.textColor.withOpacity(0.8),
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: GameTheme.spacingM),
@@ -491,7 +529,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                       const SizedBox(
                                           width: GameTheme.spacingXS),
                                       Text(
-                                        '${(chat['participants'] as Map<String, dynamic>).length} Players Online',
+                                        '${(chat['participants'] as Map<String, dynamic>).length} Players',
                                         style: TextStyle(
                                           color: GameTheme.textColor
                                               .withOpacity(0.6),
@@ -499,27 +537,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                         ),
                                       ),
                                     ],
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: GameTheme.spacingM,
-                                      vertical: GameTheme.spacingS,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          GameTheme.textColor.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(
-                                          GameTheme.borderRadiusMedium),
-                                    ),
-                                    child: Text(
-                                      chat['isActive'] == true
-                                          ? 'Join Game'
-                                          : 'Join Room',
-                                      style: const TextStyle(
-                                        color: GameTheme.textColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
                                   ),
                                 ],
                               ),
