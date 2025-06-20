@@ -93,6 +93,8 @@ class RealtimeChatService {
       _chatService.updateGroupName(groupChatId: groupChatId, newName: newName);
   Future<Map<String, dynamic>> getChatInfo(String chatId) =>
       _chatService.getChatInfo(chatId);
+
+  // Returns a safe Map<String, dynamic> from any dynamic map, converting keys to String.
   Map<String, dynamic> safeMapFrom(dynamic map) {
     if (map is Map) {
       return Map<String, dynamic>.from(
@@ -102,22 +104,24 @@ class RealtimeChatService {
     return {};
   }
 
+  /// Stream of all group chat data for the current user.
+  /// Listens to the 'group_chats' node in Firebase and parses each chat's metadata, participants, and game state.
+  /// Handles errors and sorts chats by creation time (most recent first).
   Stream<List<Map<String, dynamic>>> getGroupChatsData() {
     try {
       final user = _authService.currentUser;
       if (user == null) return Stream.value(<Map<String, dynamic>>[]);
 
+      // Listen to all group chats in the database
       return _databaseService.getRef('group_chats').onValue.map((event) {
         final rawData = event.snapshot.value;
 
         if (rawData == null) return <Map<String, dynamic>>[];
-
         if (rawData is! Map) {
           return <Map<String, dynamic>>[];
         }
 
         final data = safeMapFrom(rawData);
-
         final List<Map<String, dynamic>> chats = [];
 
         for (var entry in data.entries) {
@@ -125,6 +129,7 @@ class RealtimeChatService {
             final chatId = entry.key;
             final chatData = safeMapFrom(entry.value);
 
+            // Parse chat metadata and participants
             final metadata = safeMapFrom(chatData['metadata']);
             if (metadata.isEmpty) {
               continue;
@@ -140,6 +145,7 @@ class RealtimeChatService {
               createdAt = chatData['createdAt'] as int? ?? createdAt;
             } catch (_) {}
 
+            // Add parsed chat to the list
             chats.add({
               'chatId': chatId,
               'metadata': metadata,
@@ -158,11 +164,13 @@ class RealtimeChatService {
               'gameStart': chatData['gameStart'] ?? {},
               'turnTimer': chatData['turnTimer'] ?? {},
             });
-          } catch (e) {
+          } catch (e, st) {
+            // Skip malformed chat entries
             continue;
           }
         }
 
+        // Sort chats by creation time (descending)
         chats.sort((a, b) {
           final timeA = a['createdAt'] as int? ?? 0;
           final timeB = b['createdAt'] as int? ?? 0;
@@ -171,9 +179,11 @@ class RealtimeChatService {
 
         return chats;
       }).handleError((error) {
+        // On stream error, return empty list
         return <Map<String, dynamic>>[];
       });
-    } catch (e) {
+    } catch (e, st) {
+      // On function error, return empty list
       return Stream.value(<Map<String, String>>[]);
     }
   }

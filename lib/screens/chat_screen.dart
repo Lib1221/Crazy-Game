@@ -56,7 +56,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _setupGameListeners() {
     final gameRef = _database.ref('group_chats/${widget.chatId}/game');
 
-    // Listen for selected numbers changes
+    // Listen for selected numbers changes (cards played in the center)
     gameRef.child('selectedNumbers').onValue.listen((event) {
       if (event.snapshot.value != null) {
         setState(() {
@@ -65,7 +65,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
 
-    // Listen for turn changes
+    // Listen for turn changes (whose turn is it?)
     _database.ref('group_chats/${widget.chatId}/turn').onValue.listen((event) {
       if (event.snapshot.value != null) {
         final turnData = event.snapshot.value as Map<dynamic, dynamic>;
@@ -79,7 +79,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
 
-    // Listen for participants
+    // Listen for participants (players in the room)
     _database
         .ref('group_chats/${widget.chatId}/participants')
         .onValue
@@ -91,7 +91,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
 
-    // Listen for all players' numbers in real-time
+    // Listen for all players' numbers in real-time (cards in hand)
     gameRef.child('userNumbers').onValue.listen((event) {
       if (event.snapshot.value != null) {
         final userNumbers = event.snapshot.value as Map<dynamic, dynamic>;
@@ -219,6 +219,8 @@ class _ChatScreenState extends State<ChatScreen> {
     return '$valueText$suitSymbol';
   }
 
+  /// Sends a card number to the chat/game logic, handling multi-select, wild cards, and turn passing.
+  /// Updates Firebase and local state accordingly.
   Future<void> _sendNumberToChat(int number) async {
     if (!isMyTurn || isProcessingMove) return;
 
@@ -486,6 +488,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  /// Loads the current user's cards from Firebase.
   Future<void> _loadUserNumbers() async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
@@ -505,6 +508,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  /// Adds random cards to the next player (for Ace/2 effects).
   Future<void> _addRandomCardsToNextPlayer(int count) async {
     if (turnOrder.isEmpty) return;
 
@@ -566,6 +570,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  /// Skips the current user's turn, draws a card, and updates Firebase.
   Future<void> _skipTurn() async {
     if (!isMyTurn) return;
 
