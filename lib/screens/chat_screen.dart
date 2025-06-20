@@ -349,10 +349,10 @@ class _ChatScreenState extends State<ChatScreen> {
           selectedNumbers.isNotEmpty ? selectedNumbers.last : null;
       if (!CardGameRuleChecker.isMoveAllowed(lastSelectedNumber, number)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
+          SnackBar(
+            content: const Text(
                 'Invalid move! Card must match suit or value of the previous card.'),
-            backgroundColor: Colors.red,
+            backgroundColor: GameTheme.errorColor,
           ),
         );
         return;
@@ -1165,12 +1165,14 @@ class _ChatScreenState extends State<ChatScreen> {
                                       color: GameTheme.accentColor,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: Colors.white, width: 1),
+                                        color: GameTheme.textColor,
+                                        width: 1,
+                                      ),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.check,
                                       size: 12,
-                                      color: Colors.white,
+                                      color: GameTheme.textColor,
                                     ),
                                   ),
                                 ),

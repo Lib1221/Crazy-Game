@@ -41,53 +41,54 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAr0Tuak2QpzUVU6Cw80XuYivwpkWC5qMc',
-    appId: '1:357008337257:web:1c62a78de45919763975f8',
-    messagingSenderId: '357008337257',
-    projectId: 'crazy-game-3c761',
-    authDomain: 'crazy-game-3c761.firebaseapp.com',
-    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
-    storageBucket: 'crazy-game-3c761.firebasestorage.app',
-    measurementId: 'G-S33P7TDFGF',
+    apiKey: 'AIzaSyD9YlVsOD_egQVW6rTIzDdN3WG9GTWc9Zk',
+    appId: '1:34917299276:web:e0d5a483d0f8b3c1dcf0e9',
+    messagingSenderId: '34917299276',
+    projectId: 'karata-e028c',
+    authDomain: 'karata-e028c.firebaseapp.com',
+    databaseURL: 'https://karata-e028c-default-rtdb.firebaseio.com',
+    storageBucket: 'karata-e028c.firebasestorage.app',
+    measurementId: 'G-2WMTXXHGFF',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBQ-mgylQ9f5tiqKLzVdTh_hvMLEDNPFEI',
-    appId: '1:357008337257:android:31edb26b040be94e3975f8',
-    messagingSenderId: '357008337257',
-    projectId: 'crazy-game-3c761',
-    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
-    storageBucket: 'crazy-game-3c761.firebasestorage.app',
+    apiKey: 'AIzaSyBxxt6UsaJB47h72ZVPjRJYpZHRO4ngIJQ',
+    appId: '1:34917299276:android:2ba0fd93c64836a2dcf0e9',
+    messagingSenderId: '34917299276',
+    projectId: 'karata-e028c',
+    databaseURL: 'https://karata-e028c-default-rtdb.firebaseio.com',
+    storageBucket: 'karata-e028c.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCLPyiha3sjkBeVTmWndAyogmea3m0BZsM',
-    appId: '1:357008337257:ios:0e7512cb72eeb9de3975f8',
-    messagingSenderId: '357008337257',
-    projectId: 'crazy-game-3c761',
-    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
-    storageBucket: 'crazy-game-3c761.firebasestorage.app',
+    apiKey: 'AIzaSyBpAbAvEZ_2XJ67rU2M7SFNUCPrBIiV5Yg',
+    appId: '1:34917299276:ios:04e118d70230b1e1dcf0e9',
+    messagingSenderId: '34917299276',
+    projectId: 'karata-e028c',
+    databaseURL: 'https://karata-e028c-default-rtdb.firebaseio.com',
+    storageBucket: 'karata-e028c.firebasestorage.app',
     iosBundleId: 'com.example.crazygame',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCLPyiha3sjkBeVTmWndAyogmea3m0BZsM',
-    appId: '1:357008337257:ios:0e7512cb72eeb9de3975f8',
-    messagingSenderId: '357008337257',
-    projectId: 'crazy-game-3c761',
-    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
-    storageBucket: 'crazy-game-3c761.firebasestorage.app',
+    apiKey: 'AIzaSyBpAbAvEZ_2XJ67rU2M7SFNUCPrBIiV5Yg',
+    appId: '1:34917299276:ios:04e118d70230b1e1dcf0e9',
+    messagingSenderId: '34917299276',
+    projectId: 'karata-e028c',
+    databaseURL: 'https://karata-e028c-default-rtdb.firebaseio.com',
+    storageBucket: 'karata-e028c.firebasestorage.app',
     iosBundleId: 'com.example.crazygame',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAr0Tuak2QpzUVU6Cw80XuYivwpkWC5qMc',
-    appId: '1:357008337257:web:82ce1f5ba29c0fb63975f8',
-    messagingSenderId: '357008337257',
-    projectId: 'crazy-game-3c761',
-    authDomain: 'crazy-game-3c761.firebaseapp.com',
-    databaseURL: 'https://crazy-game-3c761-default-rtdb.firebaseio.com',
-    storageBucket: 'crazy-game-3c761.firebasestorage.app',
-    measurementId: 'G-8PSCFECK5E',
+    apiKey: 'AIzaSyD9YlVsOD_egQVW6rTIzDdN3WG9GTWc9Zk',
+    appId: '1:34917299276:web:ae7017198cb3164ddcf0e9',
+    messagingSenderId: '34917299276',
+    projectId: 'karata-e028c',
+    authDomain: 'karata-e028c.firebaseapp.com',
+    databaseURL: 'https://karata-e028c-default-rtdb.firebaseio.com',
+    storageBucket: 'karata-e028c.firebasestorage.app',
+    measurementId: 'G-JS0FJGG651',
   );
+
 }

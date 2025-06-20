@@ -7,7 +7,6 @@ import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'controllers/auth_controller.dart';
-import 'controllers/profile_controller.dart';
 import 'controllers/user_settings_controller.dart';
 import 'services/error_service.dart';
 import 'services/realtime/database_service.dart';
@@ -25,7 +24,6 @@ void main() async {
 
   // Initialize controllers
   Get.put(AuthController(), permanent: true);
-  Get.put(ProfileController(), permanent: true);
   Get.put(UserSettingsController(), permanent: true);
 
   runApp(const MyApp());

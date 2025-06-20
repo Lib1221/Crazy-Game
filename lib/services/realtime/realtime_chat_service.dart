@@ -93,96 +93,88 @@ class RealtimeChatService {
       _chatService.updateGroupName(groupChatId: groupChatId, newName: newName);
   Future<Map<String, dynamic>> getChatInfo(String chatId) =>
       _chatService.getChatInfo(chatId);
+  Map<String, dynamic> safeMapFrom(dynamic map) {
+    if (map is Map) {
+      return Map<String, dynamic>.from(
+        map.map((key, value) => MapEntry(key.toString(), value)),
+      );
+    }
+    return {};
+  }
+
   Stream<List<Map<String, dynamic>>> getGroupChatsData() {
     try {
       final user = _authService.currentUser;
       if (user == null) return Stream.value(<Map<String, dynamic>>[]);
 
       return _databaseService.getRef('group_chats').onValue.map((event) {
-        try {
-          if (event.snapshot.value == null) return <Map<String, dynamic>>[];
+        final rawData = event.snapshot.value;
 
-          final rawData = event.snapshot.value;
-          if (rawData == null) return <Map<String, dynamic>>[];
+        if (rawData == null) return <Map<String, dynamic>>[];
 
-          if (rawData is! Map) {
-            return <Map<String, dynamic>>[];
-          }
-
-          final data = Map<String, dynamic>.from(rawData);
-          final List<Map<String, dynamic>> chats = [];
-
-          for (var entry in data.entries) {
-            try {
-              final chatId = entry.key;
-              final chatData = entry.value as Map<String, dynamic>?;
-
-              if (chatData == null) {
-                continue;
-              }
-
-              // Extract metadata
-              final metadata = chatData['metadata'] as Map<String, dynamic>?;
-              if (metadata == null) {
-                continue;
-              }
-
-              // Extract participants
-              final participants =
-                  chatData['participants'] as Map<String, dynamic>?;
-              if (participants == null) {
-                continue;
-              }
-
-              // Get creation timestamp with fallback
-              int createdAt;
-              try {
-                createdAt = chatData['createdAt'] as int? ??
-                    DateTime.now().millisecondsSinceEpoch;
-              } catch (e) {
-                createdAt = DateTime.now().millisecondsSinceEpoch;
-              }
-
-              chats.add({
-                'chatId': chatId,
-                'metadata': metadata, // Include full metadata
-                'name': metadata['name'] ?? 'Unnamed Chat',
-                'isActive': metadata['isActive'] ?? true,
-                'lastMessage': chatData['lastMessage']?.toString() ?? '',
-                'lastMessageTime': chatData['lastMessageTime'],
-                'lastMessageSender': chatData['lastMessageSender'],
-                'participants': participants,
-                'createdAt': createdAt,
-                'totalMessages': metadata['totalMessages'] ?? 0,
-                'lastActivity': metadata['lastActivity'],
-                'readBy': metadata['readBy'],
-                'gameData': chatData['game'] ?? {},
-                'turn': chatData['turn'] ?? {},
-                'gameStart': chatData['gameStart'] ?? {},
-                'turnTimer': chatData['turnTimer'] ?? {},
-              });
-            } catch (e) {
-              continue;
-            }
-          }
-
-          // Sort chats by creation time (most recent first)
-          chats.sort((a, b) {
-            final timeA = a['createdAt'] as int? ?? 0;
-            final timeB = b['createdAt'] as int? ?? 0;
-            return timeB
-                .compareTo(timeA); // Descending order for most recent first
-          });
-
-          return chats;
-        } catch (e) {
+        if (rawData is! Map) {
           return <Map<String, dynamic>>[];
         }
+
+        final data = safeMapFrom(rawData);
+
+        final List<Map<String, dynamic>> chats = [];
+
+        for (var entry in data.entries) {
+          try {
+            final chatId = entry.key;
+            final chatData = safeMapFrom(entry.value);
+
+            final metadata = safeMapFrom(chatData['metadata']);
+            if (metadata.isEmpty) {
+              continue;
+            }
+
+            final participants = safeMapFrom(chatData['participants']);
+            if (participants.isEmpty) {
+              continue;
+            }
+
+            int createdAt = DateTime.now().millisecondsSinceEpoch;
+            try {
+              createdAt = chatData['createdAt'] as int? ?? createdAt;
+            } catch (_) {}
+
+            chats.add({
+              'chatId': chatId,
+              'metadata': metadata,
+              'name': metadata['name'] ?? 'Unnamed Chat',
+              'isActive': metadata['isActive'] ?? true,
+              'lastMessage': chatData['lastMessage']?.toString() ?? '',
+              'lastMessageTime': chatData['lastMessageTime'],
+              'lastMessageSender': chatData['lastMessageSender'],
+              'participants': participants,
+              'createdAt': createdAt,
+              'totalMessages': metadata['totalMessages'] ?? 0,
+              'lastActivity': metadata['lastActivity'],
+              'readBy': metadata['readBy'],
+              'gameData': chatData['game'] ?? {},
+              'turn': chatData['turn'] ?? {},
+              'gameStart': chatData['gameStart'] ?? {},
+              'turnTimer': chatData['turnTimer'] ?? {},
+            });
+          } catch (e) {
+            continue;
+          }
+        }
+
+        chats.sort((a, b) {
+          final timeA = a['createdAt'] as int? ?? 0;
+          final timeB = b['createdAt'] as int? ?? 0;
+          return timeB.compareTo(timeA);
+        });
+
+        return chats;
       }).handleError((error) {
         return <Map<String, dynamic>>[];
       });
     } catch (e) {
-      return Stream.value(<Map<String, dynamic>>[]);
+      return Stream.value(<Map<String, String>>[]);
     }
   }
 

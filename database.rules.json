@@ -3,22 +3,93 @@
     "users": {
       ".read": "auth != null",
       ".write": "auth != null",
+      ".indexOn": ["email"],
       "$uid": {
-        ".read": true,
-        ".write": "$uid === auth.uid"
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        "chats": {
+          ".indexOn": ["joinedAt"]
+        }
       }
     },
-    "chats": {
+
+    "group_chats": {
       ".read": "auth != null",
       ".write": "auth != null",
       "$chatId": {
-        ".read": "auth != null && data.child('metadata/participants').hasChild(auth.uid)",
-        ".write": "auth != null && data.child('metadata/participants').hasChild(auth.uid)",
+        ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+        ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+
         "messages": {
-          ".read": "auth != null && root.child('chats').child($chatId).child('metadata/participants').hasChild(auth.uid)",
-          ".write": "auth != null && root.child('chats').child($chatId).child('metadata/participants').hasChild(auth.uid)"
+          ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".indexOn": ["timestamp"]
+        },
+
+        "participants": {
+          ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".indexOn": ["joinedAt"]
+        },
+
+        "game": {
+          ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+
+          "selectedNumbers": {
+            ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            ".indexOn": [".value"]
+          },
+
+          "numberSelectors": {
+            ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            ".indexOn": ["timestamp"]
+          },
+
+          "userNumbers": {
+            ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            "$userId": {
+              ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+              ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+              ".indexOn": ["timestamp"],
+              "numbers": {
+                ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+                ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()"
+              },
+              "assignedAt": {
+                ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+                ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()"
+              }
+            }
+          }
+        },
+
+        "turn": {
+          ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".indexOn": ["lastUpdated"]
+        },
+
+        "turnTimer": {
+          ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".indexOn": ["startTime"]
+        },
+
+        "gameStart": {
+          ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+          ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+
+          "readyUsers": {
+            ".read": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            ".write": "auth != null && root.child('group_chats').child($chatId).child('participants').child(auth.uid).exists()",
+            ".indexOn": [".value"]
+          }
         }
       }
     }
   }
-} 
+}

@@ -1,14 +1,14 @@
 {
   "project_info": {
-    "project_number": "357008337257",
-    "firebase_url": "https://crazy-game-3c761-default-rtdb.firebaseio.com",
-    "project_id": "crazy-game-3c761",
-    "storage_bucket": "crazy-game-3c761.firebasestorage.app"
+    "project_number": "34917299276",
+    "firebase_url": "https://karata-e028c-default-rtdb.firebaseio.com",
+    "project_id": "karata-e028c",
+    "storage_bucket": "karata-e028c.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:357008337257:android:31edb26b040be94e3975f8",
+        "mobilesdk_app_id": "1:34917299276:android:2ba0fd93c64836a2dcf0e9",
         "android_client_info": {
           "package_name": "com.example.crazygame"
         }
@@ -16,7 +16,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBQ-mgylQ9f5tiqKLzVdTh_hvMLEDNPFEI"
+          "current_key": "AIzaSyBxxt6UsaJB47h72ZVPjRJYpZHRO4ngIJQ"
         }
       ],
       "services": {

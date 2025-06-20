@@ -57,13 +57,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   int _calculateLevel(int rank) {
-    // Level = (rank / 5) + 1, rounded down
-    // This means:
-    // - Every 5 ranks = 1 level
-    // - Level 1 starts at rank 0
-    // - Level 2 at rank 5
-    // - Level 3 at rank 10
-    // And so on...
     return (rank ~/ 5) + 1;
   }
 
@@ -94,7 +87,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       appBar: AppBar(
         backgroundColor: GameTheme.surfaceColor,
         title: const Text(
-          'Chats',
+          'Game Room',
           style: TextStyle(
             color: GameTheme.textColor,
             fontWeight: FontWeight.bold,
@@ -102,17 +95,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
         ),
         iconTheme: const IconThemeData(color: GameTheme.textColor),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.leaderboard),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const LeaderboardScreen(),
-                ),
-              );
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
@@ -419,15 +401,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
             final validChats = chats.where((chat) {
               final currentUserId = _chatService.currentUserId;
               final participants =
-                  chat['participants'] as Map<String, dynamic>?;
-              final gameData = chat['gameData'] as Map<String, dynamic>?;
+                  _chatService.safeMapFrom(chat['participants']);
+              final gameData = _chatService.safeMapFrom(chat['gameData']);
               final userNumbers =
-                  gameData?['userNumbers'] as Map<String, dynamic>?;
+                  _chatService.safeMapFrom(gameData['userNumbers']);
               final currentUserNumbers =
-                  userNumbers?[currentUserId]?['numbers'] as List<dynamic>?;
+                  userNumbers[currentUserId]?['numbers'] as List<dynamic>?;
 
               return currentUserId != null &&
-                  participants != null &&
+                  participants.isNotEmpty &&
                   participants.containsKey(currentUserId) &&
                   currentUserNumbers != null &&
                   currentUserNumbers.isNotEmpty;
@@ -513,13 +495,15 @@ class _ChatListScreenState extends State<ChatListScreen> {
               itemBuilder: (context, index) {
                 final chat = validChats[index];
                 final groupChatId = chat['chatId'] as String;
-                final metadata = chat['metadata'] as Map<String, dynamic>?;
+                final metadata = _chatService.safeMapFrom(chat['metadata']);
+                final participants =
+                    _chatService.safeMapFrom(chat['participants']);
 
                 return GestureDetector(
                   onTap: () {
                     Get.to(() => ChatScreen(
                           chatId: groupChatId,
-                          chatName: metadata?['name'] ?? 'Unnamed Chat',
+                          chatName: metadata['name'] ?? 'Unnamed Chat',
                         ));
                   },
                   child: Container(
@@ -574,8 +558,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                           ),
                                         Expanded(
                                           child: Text(
-                                            chat['metadata']?['name'] ??
-                                                'Unnamed Chat',
+                                            metadata['name'] ?? 'Unnamed Chat',
                                             style: const TextStyle(
                                               color: GameTheme.textColor,
                                               fontSize: 20,
@@ -651,7 +634,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                     Text(
                                       _isGameOver(chat)
                                           ? ''
-                                          : chat['metadata']?['description'] ??
+                                          : metadata['description'] ??
                                               'No description available',
                                       maxLines: 3,
                                       overflow: TextOverflow.ellipsis,
@@ -683,7 +666,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                                       const SizedBox(
                                           width: GameTheme.spacingXS),
                                       Text(
-                                        '${(chat['participants'] as Map<String, dynamic>).length} Players',
+                                        '${participants.length} Players',
                                         style: TextStyle(
                                           color: GameTheme.textColor
                                               .withOpacity(0.6),
@@ -745,11 +728,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   bool _isGameOver(Map<String, dynamic> chat) {
     try {
-      final gameData = chat['gameData'] as Map<String, dynamic>?;
-      if (gameData == null) return false;
+      final gameData = _chatService.safeMapFrom(chat['gameData']);
+      if (gameData.isEmpty) return false;
 
-      final userNumbers = gameData['userNumbers'] as Map<String, dynamic>?;
-      if (userNumbers == null) return false;
+      final userNumbers = _chatService.safeMapFrom(gameData['userNumbers']);
+      if (userNumbers.isEmpty) return false;
 
       // Check if any participant has an empty number array
       for (var participant in userNumbers.values) {
@@ -768,23 +751,25 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   String _getWinnerName(Map<String, dynamic> chat) {
     try {
-      final gameData = chat['gameData'] as Map<String, dynamic>?;
-      if (gameData == null) return 'Unknown';
+      final gameData = _chatService.safeMapFrom(chat['gameData']);
+      if (gameData.isEmpty) return 'Unknown';
 
-      final userNumbers = gameData['userNumbers'] as Map<String, dynamic>?;
-      if (userNumbers == null) return 'Unknown';
+      final userNumbers = _chatService.safeMapFrom(gameData['userNumbers']);
+      if (userNumbers.isEmpty) return 'Unknown';
 
       // Find the participant with empty numbers array
       for (var entry in userNumbers.entries) {
-        final participant = entry.value as Map<String, dynamic>?;
+        final participant =
+            entry.value is Map ? _chatService.safeMapFrom(entry.value) : null;
         if (participant != null) {
           final numbers = participant['numbers'] as List<dynamic>?;
           if (numbers == null || numbers.isEmpty) {
             // Get the participant's name from metadata
-            final participants = chat['participants'] as Map<String, dynamic>?;
-            if (participants != null) {
-              final participantData =
-                  participants[entry.key] as Map<String, dynamic>?;
+            final participants = _chatService.safeMapFrom(chat['participants']);
+            if (participants.isNotEmpty) {
+              final participantData = participants[entry.key] is Map
+                  ? _chatService.safeMapFrom(participants[entry.key])
+                  : null;
               return participantData?['name'] ?? 'Unknown Player';
             }
           }
