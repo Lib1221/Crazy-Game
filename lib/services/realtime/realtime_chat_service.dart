@@ -164,7 +164,7 @@ class RealtimeChatService {
               'gameStart': chatData['gameStart'] ?? {},
               'turnTimer': chatData['turnTimer'] ?? {},
             });
-          } catch (e, st) {
+          } catch (e) {
             // Skip malformed chat entries
             continue;
           }
@@ -182,7 +182,7 @@ class RealtimeChatService {
         // On stream error, return empty list
         return <Map<String, dynamic>>[];
       });
-    } catch (e, st) {
+    } catch (e) {
       // On function error, return empty list
       return Stream.value(<Map<String, String>>[]);
     }

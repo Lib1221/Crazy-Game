@@ -5,6 +5,7 @@ import 'package:playing_cards/playing_cards.dart';
 import '../services/realtime/realtime_chat_service.dart';
 import '../services/game/card_game_rule.dart';
 import '../theme/game_theme.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class ChatScreen extends StatefulWidget {
   final String chatId;
@@ -24,6 +25,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
   final _chatService = RealtimeChatService();
   final _database = FirebaseDatabase.instance;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   List<dynamic> currentUserNumbers = [];
   String? currentUserId;
@@ -50,6 +52,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _chatService.disposeChatKey(widget.chatId);
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -92,7 +95,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     // Listen for all players' numbers in real-time (cards in hand)
-    gameRef.child('userNumbers').onValue.listen((event) {
+    gameRef.child('userNumbers').onValue.listen((event) async {
       if (event.snapshot.value != null) {
         final userNumbers = event.snapshot.value as Map<dynamic, dynamic>;
         setState(() {
@@ -444,6 +447,7 @@ class _ChatScreenState extends State<ChatScreen> {
         // Check if it's Ace of Spades
         final card = CardGameRuleChecker.getCardFromNumber(number);
         if (card.suit == Suit.spades) {
+          await _audioPlayer.play(AssetSource('sounds/alert.mp3'));
           await _addRandomCardsToNextPlayer(5);
           await chatRef.push().set({
             'uid': currentUserId,
@@ -463,6 +467,7 @@ class _ChatScreenState extends State<ChatScreen> {
           });
         }
       } else if (CardGameRuleChecker.isTwo(number)) {
+        await _audioPlayer.play(AssetSource('sounds/alert.mp3'));
         await _addRandomCardsToNextPlayer(2);
         await chatRef.push().set({
           'uid': currentUserId,

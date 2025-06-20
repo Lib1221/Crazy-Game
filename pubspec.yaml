@@ -43,6 +43,7 @@ dependencies:
   playing_cards: ^0.4.1+11
   shared_preferences: ^2.2.2
   flutter_colorpicker: ^1.0.3
+  audioplayers: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -71,6 +72,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/sounds/
+    - assets/sounds/alert.mp3
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
