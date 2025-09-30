@@ -453,7 +453,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
           final random = Random();
           setState(() {
-            selectAudio = random.nextInt(7) + 1; // range 1–7
+            selectAudio = random.nextInt(6) + 1; // range 1–7
           });
 
           await _audioPlayer.play(AssetSource('sounds/$selectAudio.mp3'));
@@ -478,7 +478,16 @@ class _ChatScreenState extends State<ChatScreen> {
           });
         }
       } else if (CardGameRuleChecker.isTwo(number)) {
-        await _audioPlayer.play(AssetSource('sounds/alert.mp3'));
+        int? selectAudio; // store the selected number
+
+          final random = Random();
+          setState(() {
+            selectAudio = random.nextInt(6) + 1; // range 1–7
+          });
+
+          await _audioPlayer.play(AssetSource('sounds/$selectAudio.mp3'));
+          print("""""""""""""---------""""""""");
+          print('sounds/$selectAudio.mp3');
         await _addRandomCardsToNextPlayer(2);
         await chatRef.push().set({
           'uid': currentUserId,
