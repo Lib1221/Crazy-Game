@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -30,7 +32,7 @@ class _ChatScreenState extends State<ChatScreen> {
   List<dynamic> currentUserNumbers = [];
   String? currentUserId;
   String? currentUserEmail;
-  List<int> selectedNumbers = [];
+  List<int> selectAudios = [];
   Map<String, dynamic> participants = {};
   List<String> turnOrder = [];
   String? currentTurnUid;
@@ -60,10 +62,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final gameRef = _database.ref('group_chats/${widget.chatId}/game');
 
     // Listen for selected numbers changes (cards played in the center)
-    gameRef.child('selectedNumbers').onValue.listen((event) {
+    gameRef.child('selectAudios').onValue.listen((event) {
       if (event.snapshot.value != null) {
         setState(() {
-          selectedNumbers = List<int>.from(event.snapshot.value as List);
+          selectAudios = List<int>.from(event.snapshot.value as List);
         });
       }
     });
@@ -283,8 +285,8 @@ class _ChatScreenState extends State<ChatScreen> {
         final gameRef = _database.ref('group_chats/${widget.chatId}/game');
         final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
 
-        // Add only the 7 to selectedNumbers array
-        await gameRef.child('selectedNumbers').set([cardsToPlay[0]]);
+        // Add only the 7 to selectAudios array
+        await gameRef.child('selectAudios').set([cardsToPlay[0]]);
 
         // Add a message in the chat
         final card = CardGameRuleChecker.getCardFromNumber(cardsToPlay[0]);
@@ -350,9 +352,9 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       // Regular single card play logic
-      final lastSelectedNumber =
-          selectedNumbers.isNotEmpty ? selectedNumbers.last : null;
-      if (!CardGameRuleChecker.isMoveAllowed(lastSelectedNumber, number)) {
+      final lastselectAudio =
+          selectAudios.isNotEmpty ? selectAudios.last : null;
+      if (!CardGameRuleChecker.isMoveAllowed(lastselectAudio, number)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
@@ -388,9 +390,9 @@ class _ChatScreenState extends State<ChatScreen> {
       final gameRef = _database.ref('group_chats/${widget.chatId}/game');
       final chatRef = _database.ref('group_chats/${widget.chatId}/messages');
 
-      // Add the number to selectedNumbers array
-      final newSelectedNumbers = List<int>.from(selectedNumbers)..add(number);
-      await gameRef.child('selectedNumbers').set(newSelectedNumbers);
+      // Add the number to selectAudios array
+      final newselectAudios = List<int>.from(selectAudios)..add(number);
+      await gameRef.child('selectAudios').set(newselectAudios);
 
       // Add a message in the chat
       final card = CardGameRuleChecker.getCardFromNumber(number);
@@ -447,7 +449,16 @@ class _ChatScreenState extends State<ChatScreen> {
         // Check if it's Ace of Spades
         final card = CardGameRuleChecker.getCardFromNumber(number);
         if (card.suit == Suit.spades) {
-          await _audioPlayer.play(AssetSource('sounds/alert.mp3'));
+          int? selectAudio; // store the selected number
+
+          final random = Random();
+          setState(() {
+            selectAudio = random.nextInt(7) + 1; // range 1–7
+          });
+
+          await _audioPlayer.play(AssetSource('sounds/$selectAudio.mp3'));
+          print("""""""""""""---------""""""""");
+          print('sounds/$selectAudio.mp3');
           await _addRandomCardsToNextPlayer(5);
           await chatRef.push().set({
             'uid': currentUserId,
@@ -689,7 +700,7 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             _buildPlayerCounts(),
             Expanded(
-              child: _buildSelectedNumbers(),
+              child: _buildselectAudios(),
             ),
             if (winnerUid != null) _buildGameOver() else _buildNumberButtons(),
           ],
@@ -838,8 +849,8 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildSelectedNumbers() {
-    if (selectedNumbers.isEmpty) {
+  Widget _buildselectAudios() {
+    if (selectAudios.isEmpty) {
       return Center(
         child: Text(
           'No numbers selected yet',
@@ -852,9 +863,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     // Get only the last 4 selected numbers
-    final lastFourNumbers = selectedNumbers.length > 4
-        ? selectedNumbers.sublist(selectedNumbers.length - 4)
-        : selectedNumbers;
+    final lastFourNumbers = selectAudios.length > 4
+        ? selectAudios.sublist(selectAudios.length - 4)
+        : selectAudios;
 
     // If the last card is a 7, make sure it's at the top
     final displayNumbers = List<int>.from(lastFourNumbers);
@@ -1018,9 +1029,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                         final chatRef = _database.ref(
                                             'group_chats/${widget.chatId}/messages');
 
-                                        // Add only the 7 to selectedNumbers array
+                                        // Add only the 7 to selectAudios array
                                         await gameRef
-                                            .child('selectedNumbers')
+                                            .child('selectAudios')
                                             .set([cardsToPlay[0]]);
 
                                         // Add a message in the chat
