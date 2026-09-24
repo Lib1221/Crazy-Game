@@ -48,3 +48,11 @@ A real-time multiplayer card game built with Flutter and Firebase.
 
 ## License
 MIT
+
+## Documentation
+
+Developer docs live in [`docs/`](docs/):
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Setup](docs/SETUP.md)
+- [Contributing](docs/CONTRIBUTING.md)
